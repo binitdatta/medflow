@@ -1,0 +1,885 @@
+/* =========================================================
+   MedFlow — Bootstrap 5 "Light Blue" theme
+   Design tokens first, then component styles. Keeping a small,
+   consistent scale for color/spacing/radius/shadow is what makes this
+   read as "designed" rather than "default Bootstrap + a color swap".
+   ========================================================= */
+:root {
+    --mf-blue-50:  #eef7fd;
+    --mf-blue-100: #d9edfb;
+    --mf-blue-200: #b7dcf6;
+    --mf-blue-300: #8ec7ee;
+    --mf-blue-400: #5eabe1;
+    --mf-blue-500: #368fd1;
+    --mf-blue-600: #2571ac;
+    --mf-blue-700: #1c5a89;
+    --mf-blue-800: #163f5f;
+    --mf-ink:      #1f2d3a;
+    --mf-ink-soft: #56677a;
+
+    --mf-radius-sm: 0.4rem;
+    --mf-radius-md: 0.65rem;
+    --mf-radius-lg: 1rem;
+
+    --mf-shadow-sm: 0 1px 3px rgba(28, 90, 137, 0.08);
+    --mf-shadow-md: 0 2px 10px rgba(28, 90, 137, 0.10);
+    --mf-shadow-lg: 0 8px 24px rgba(28, 90, 137, 0.14);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--mf-blue-50);
+    color: var(--mf-ink);
+    font-feature-settings: "kern";
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--mf-blue-800);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+/* ---------- Navbar ---------- */
+.medflow-navbar {
+    background-color: #ffffff;
+    border-bottom: 1px solid var(--mf-blue-200);
+    box-shadow: var(--mf-shadow-sm);
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+}
+
+.navbar-brand {
+    color: var(--mf-blue-700) !important;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.navbar-brand i {
+    color: var(--mf-blue-500);
+}
+
+.nav-link {
+    color: var(--mf-ink-soft) !important;
+    font-weight: 500;
+    transition: color 0.15s ease;
+}
+
+.nav-link:hover,
+.nav-link.active {
+    color: var(--mf-blue-600) !important;
+}
+
+.dropdown-menu {
+    border: 1px solid var(--mf-blue-200);
+    box-shadow: var(--mf-shadow-md);
+    border-radius: var(--mf-radius-md);
+}
+
+.dropdown-item:hover {
+    background-color: var(--mf-blue-50);
+    color: var(--mf-blue-700);
+}
+
+.medflow-role-badge {
+    display: inline-block;
+    background-color: var(--mf-blue-500);
+    color: #ffffff !important;
+    padding: 0.32em 0.75em;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    box-shadow: var(--mf-shadow-sm);
+}
+
+/* ---------- Cards ---------- */
+.card {
+    border: 1px solid var(--mf-blue-200);
+    border-radius: var(--mf-radius-md);
+    box-shadow: var(--mf-shadow-sm);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: var(--mf-shadow-md);
+}
+
+.card-header {
+    background-color: var(--mf-blue-100);
+    border-bottom: 1px solid var(--mf-blue-200);
+    border-radius: var(--mf-radius-md) var(--mf-radius-md) 0 0 !important;
+    font-weight: 700;
+    color: var(--mf-blue-700);
+    padding: 0.75rem 1.1rem;
+}
+
+/* ---------- Buttons ---------- */
+.btn-primary {
+    background-color: var(--mf-blue-500);
+    border-color: var(--mf-blue-500);
+    font-weight: 600;
+    box-shadow: var(--mf-shadow-sm);
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: var(--mf-blue-600);
+    border-color: var(--mf-blue-600);
+    box-shadow: var(--mf-shadow-md);
+}
+
+.btn-outline-primary {
+    color: var(--mf-blue-600);
+    border-color: var(--mf-blue-400);
+    font-weight: 600;
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--mf-blue-500);
+    border-color: var(--mf-blue-500);
+}
+
+/* ---------- Chat: layout ---------- */
+.chat-window {
+    height: 60vh;
+    overflow-y: auto;
+    background-color: var(--mf-blue-50);
+    border: 1px solid var(--mf-blue-200);
+    border-radius: var(--mf-radius-md);
+    padding: 1.5rem;
+}
+
+.chat-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin: 0.8rem 0;
+    animation: mf-fade-in-up 0.18s ease-out;
+}
+
+@keyframes mf-fade-in-up {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.chat-row-user {
+    justify-content: flex-end;
+}
+
+.chat-row-assistant {
+    justify-content: flex-start;
+}
+
+.chat-avatar {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    box-shadow: var(--mf-shadow-sm);
+}
+
+.chat-row-user .chat-avatar {
+    background-color: var(--mf-blue-600);
+    color: #ffffff;
+}
+
+.chat-row-assistant .chat-avatar {
+    background-color: #ffffff;
+    color: var(--mf-blue-600);
+    border: 1px solid var(--mf-blue-300);
+}
+
+/* ---------- Chat: bubbles ---------- */
+.chat-bubble-user {
+    background-color: var(--mf-blue-500);
+    color: #ffffff;
+    border-radius: var(--mf-radius-lg) var(--mf-radius-lg) 0.25rem var(--mf-radius-lg);
+    padding: 0.7rem 1.05rem;
+    max-width: 68%;
+    box-shadow: var(--mf-shadow-sm);
+    font-weight: 500;
+}
+
+.chat-bubble-assistant {
+    background-color: #ffffff;
+    color: var(--mf-ink);
+    border: 1px solid var(--mf-blue-200);
+    border-radius: var(--mf-radius-lg) var(--mf-radius-lg) var(--mf-radius-lg) 0.25rem;
+    padding: 0.85rem 1.15rem;
+    max-width: 80%;
+    box-shadow: var(--mf-shadow-sm);
+    line-height: 1.55;
+}
+
+/* ---------- Markdown content inside assistant bubbles (via marked.js) ---------- */
+.chat-bubble-assistant p {
+    margin: 0 0 0.6rem 0;
+}
+.chat-bubble-assistant > *:last-child {
+    margin-bottom: 0;
+}
+
+.chat-bubble-assistant strong {
+    color: var(--mf-blue-700);
+    font-weight: 700;
+}
+
+.chat-bubble-assistant ul,
+.chat-bubble-assistant ol {
+    margin: 0.2rem 0 0.6rem 1.2rem;
+    padding: 0;
+}
+
+.chat-bubble-assistant li {
+    margin-bottom: 0.25rem;
+}
+
+.chat-bubble-assistant table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0.5rem 0 0.8rem 0;
+    font-size: 0.88rem;
+    border-radius: var(--mf-radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--mf-blue-200);
+}
+
+.chat-bubble-assistant th,
+.chat-bubble-assistant td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--mf-blue-100);
+}
+
+.chat-bubble-assistant thead th {
+    background-color: var(--mf-blue-600);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: none;
+}
+
+.chat-bubble-assistant tbody tr:nth-child(odd) td {
+    background-color: #ffffff;
+}
+
+.chat-bubble-assistant tbody tr:nth-child(even) td {
+    background-color: var(--mf-blue-50);
+}
+
+.chat-bubble-assistant tbody tr:hover td {
+    background-color: var(--mf-blue-100);
+}
+
+.chat-bubble-assistant tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.chat-bubble-assistant code {
+    background-color: var(--mf-blue-100);
+    color: var(--mf-blue-700);
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.3rem;
+    font-size: 0.85em;
+}
+
+.chat-bubble-assistant pre {
+    background-color: #0d1b2a;
+    color: #d9edfb;
+    padding: 0.85rem;
+    border-radius: var(--mf-radius-sm);
+    overflow-x: auto;
+    margin: 0.4rem 0 0.6rem 0;
+}
+
+.chat-bubble-assistant pre code {
+    background-color: transparent;
+    color: inherit;
+    padding: 0;
+}
+
+.chat-bubble-assistant hr {
+    border: none;
+    border-top: 1px solid var(--mf-blue-200);
+    margin: 0.7rem 0;
+}
+
+/* ---------- Training pages ---------- */
+.training-hero {
+    background: linear-gradient(135deg, var(--mf-blue-500), var(--mf-blue-700));
+    color: #ffffff;
+    border-radius: var(--mf-radius-lg);
+    padding: 2.5rem;
+    box-shadow: var(--mf-shadow-lg);
+}
+
+pre.code-block {
+    background-color: #0d1b2a;
+    color: #d9edfb;
+    padding: 1rem;
+    border-radius: var(--mf-radius-sm);
+    overflow-x: auto;
+}
+
+.admin-table-scroll {
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+/* AGENT COURSE TRAINING MENU */
+.navbar .dropdown-menu {
+    max-height: calc(100vh - 110px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.navbar .dropdown-menu .dropdown-header {
+    color: #176294;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding-top: 0.65rem;
+    padding-bottom: 0.4rem;
+}
+
+.lesson-menu-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;
+    height: 1.35rem;
+    margin-right: 0.4rem;
+    border-radius: 999px;
+    background: #e6f2ff;
+    color: #1267a5;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.navbar .dropdown-item:hover .lesson-menu-number,
+.navbar .dropdown-item:focus .lesson-menu-number {
+    background: #cfe7ff;
+}
+
+/* =========================================================
+   MEDFLOW — BRIGHT BLUE THEME OVERRIDES
+   Add this entire section to the BOTTOM of theme.css
+   ========================================================= */
+
+:root {
+    --mf-blue-50:  #f2f8ff;
+    --mf-blue-100: #e1efff;
+    --mf-blue-200: #bfdcff;
+    --mf-blue-300: #8fc2ff;
+    --mf-blue-400: #4f9fff;
+    --mf-blue-500: #0d6efd;
+    --mf-blue-600: #0664e8;
+    --mf-blue-700: #0057d9;
+    --mf-blue-800: #073b7a;
+
+    --mf-ink:      #172b4d;
+    --mf-ink-soft: #53677d;
+
+    --mf-shadow-sm: 0 2px 6px rgba(13, 110, 253, 0.08);
+    --mf-shadow-md: 0 6px 18px rgba(13, 110, 253, 0.14);
+    --mf-shadow-lg: 0 16px 40px rgba(13, 110, 253, 0.20);
+}
+
+
+/* =========================================================
+   PAGE
+   ========================================================= */
+
+body {
+    background:
+        linear-gradient(
+            180deg,
+            #f7fbff 0%,
+            #eef6ff 100%
+        );
+    color: var(--mf-ink);
+}
+
+
+/* =========================================================
+   HEADINGS
+   ========================================================= */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--mf-blue-800);
+}
+
+
+/* =========================================================
+   NAVBAR
+   ========================================================= */
+
+.medflow-navbar {
+    background:
+        linear-gradient(
+            90deg,
+            #ffffff 0%,
+            #f5faff 55%,
+            #eaf4ff 100%
+        ) !important;
+
+    border-bottom: 2px solid #b9d8ff !important;
+
+    box-shadow:
+        0 4px 18px rgba(13, 110, 253, 0.10) !important;
+}
+
+.navbar-brand {
+    color: #0057d9 !important;
+}
+
+.navbar-brand i {
+    color: #0d6efd !important;
+}
+
+.nav-link:hover,
+.nav-link.active {
+    color: #0d6efd !important;
+}
+
+
+/* =========================================================
+   ROLE BADGE
+   ========================================================= */
+
+.medflow-role-badge {
+    background:
+        linear-gradient(
+            135deg,
+            #2698ff,
+            #0d6efd
+        ) !important;
+
+    color: #ffffff !important;
+
+    box-shadow:
+        0 3px 10px rgba(13, 110, 253, 0.20);
+}
+
+
+/* =========================================================
+   PRIMARY BUTTONS
+   ========================================================= */
+
+.btn-primary {
+    background:
+        linear-gradient(
+            135deg,
+            #2497ff 0%,
+            #0d6efd 55%,
+            #0057d9 100%
+        ) !important;
+
+    border-color: #0d6efd !important;
+
+    color: #ffffff !important;
+
+    font-weight: 600;
+
+    box-shadow:
+        0 4px 13px rgba(13, 110, 253, 0.22);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background:
+        linear-gradient(
+            135deg,
+            #0d6efd,
+            #0052cc
+        ) !important;
+
+    border-color: #0052cc !important;
+
+    transform: translateY(-1px);
+
+    box-shadow:
+        0 7px 20px rgba(13, 110, 253, 0.28);
+}
+
+
+/* =========================================================
+   OUTLINE BUTTONS
+   ========================================================= */
+
+.btn-outline-primary {
+    color: #0d6efd !important;
+    border-color: #0d6efd !important;
+    font-weight: 600;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+    background-color: #0d6efd !important;
+    border-color: #0d6efd !important;
+    color: #ffffff !important;
+}
+
+
+/* =========================================================
+   CARDS
+   ========================================================= */
+
+.card {
+    background-color: #ffffff;
+
+    border: 1px solid #c5dfff !important;
+
+    box-shadow:
+        0 3px 12px rgba(13, 110, 253, 0.07) !important;
+}
+
+.card:hover {
+    border-color: #9bc8ff !important;
+
+    box-shadow:
+        0 10px 28px rgba(13, 110, 253, 0.14) !important;
+}
+
+.card-header {
+    background:
+        linear-gradient(
+            90deg,
+            #e9f4ff,
+            #f8fbff
+        ) !important;
+
+    border-bottom:
+        1px solid #b7d7ff !important;
+
+    color: #0057d9 !important;
+}
+
+
+/* =========================================================
+   DROPDOWN MENUS
+   ========================================================= */
+
+.dropdown-menu {
+    border-color: #bfdcff !important;
+
+    box-shadow:
+        0 8px 24px rgba(13, 110, 253, 0.12) !important;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: #eaf4ff !important;
+    color: #0057d9 !important;
+}
+
+.navbar .dropdown-menu .dropdown-header {
+    color: #0057d9 !important;
+}
+
+.lesson-menu-number {
+    background: #ddebff !important;
+    color: #0057d9 !important;
+}
+
+.navbar .dropdown-item:hover .lesson-menu-number,
+.navbar .dropdown-item:focus .lesson-menu-number {
+    background: #bcdcff !important;
+}
+
+
+/* =========================================================
+   GLOBAL TRAINING HERO
+   ========================================================= */
+
+.training-hero {
+    background:
+        linear-gradient(
+            135deg,
+            #2aa2ff 0%,
+            #0d6efd 50%,
+            #0052cc 100%
+        ) !important;
+
+    color: #ffffff !important;
+
+    box-shadow:
+        0 16px 40px rgba(13, 110, 253, 0.22) !important;
+}
+
+.training-hero h1,
+.training-hero h2,
+.training-hero h3 {
+    color: #ffffff !important;
+}
+
+
+/* =========================================================
+   CHAT
+   ========================================================= */
+
+.chat-window {
+    background:
+        linear-gradient(
+            180deg,
+            #f7fbff,
+            #edf6ff
+        ) !important;
+
+    border-color: #bfdcff !important;
+}
+
+.chat-bubble-user {
+    background:
+        linear-gradient(
+            135deg,
+            #279cff,
+            #0d6efd
+        ) !important;
+
+    color: #ffffff !important;
+
+    box-shadow:
+        0 5px 15px rgba(13, 110, 253, 0.18) !important;
+}
+
+.chat-row-user .chat-avatar {
+    background: #0d6efd !important;
+}
+
+.chat-row-assistant .chat-avatar {
+    color: #0d6efd !important;
+    border-color: #8fc2ff !important;
+}
+
+
+/* =========================================================
+   TABLES
+   ========================================================= */
+
+.chat-bubble-assistant thead th,
+.role-table thead {
+    background:
+        linear-gradient(
+            90deg,
+            #0d6efd,
+            #0057d9
+        ) !important;
+
+    color: #ffffff !important;
+}
+
+
+/* =========================================================
+   AGENT COURSE — FORCE BRIGHT BLUE THEME
+   Overrides agent-course.css
+   ========================================================= */
+
+.agent-course {
+    --ink: #17324d !important;
+    --blue: #0d6efd !important;
+    --light: #f2f8ff !important;
+    --line: #b9d8ff !important;
+}
+
+
+/* Agent Course Hero */
+
+.agent-course .course-hero {
+    background:
+        linear-gradient(
+            135deg,
+            #2aa2ff 0%,
+            #0d6efd 50%,
+            #0052cc 100%
+        ) !important;
+
+    box-shadow:
+        0 18px 45px rgba(13, 110, 253, 0.22) !important;
+}
+
+
+/* Progress Bar */
+
+.agent-course .course-progress > div {
+    background:
+        linear-gradient(
+            90deg,
+            #0d6efd,
+            #51adff
+        ) !important;
+}
+
+
+/* Course Pills */
+
+.agent-course .stack-pills span {
+    background: #e5f1ff !important;
+    color: #0057d9 !important;
+}
+
+
+/* Lesson Numbers */
+
+.agent-course .lesson-card > span {
+    background: #dcebff !important;
+    color: #0057d9 !important;
+}
+
+
+/* Flow Diagram Boxes */
+
+.agent-course .flow-strip div,
+.agent-course .final-architecture div {
+    background: #edf6ff !important;
+    border-color: #9ccaff !important;
+}
+
+
+/* Flow Diagram Lines */
+
+.agent-course .flow-strip i,
+.agent-course .final-architecture i {
+    background: #4c9fff !important;
+}
+
+.agent-course .flow-strip i::after,
+.agent-course .final-architecture i::after {
+    border-left-color: #4c9fff !important;
+}
+
+
+/* Animated Flow Dot */
+
+.agent-course .animated-flow i::before {
+    background: #0d6efd !important;
+}
+
+
+/* Timeline */
+
+.agent-course .timeline {
+    border-left-color: #83baff !important;
+}
+
+.agent-course .timeline span {
+    background: #0d6efd !important;
+}
+
+
+/* Callouts */
+
+.agent-course .callout {
+    background: #edf6ff !important;
+    border-left-color: #0d6efd !important;
+}
+
+.agent-course .callout > i {
+    color: #0d6efd !important;
+}
+
+
+/* Agent Course Hub */
+
+.agent-course .hub {
+    background:
+        linear-gradient(
+            135deg,
+            #2196ff,
+            #0d6efd
+        ) !important;
+}
+
+.agent-course .orbit {
+    border-color: #82baff !important;
+}
+
+
+/* Security / Timeline Numbers */
+
+.agent-course .security-stack span,
+.agent-course .e2e-timeline span,
+.agent-course .gate-first {
+    background: #0d6efd !important;
+}
+
+
+/* Icons */
+
+.agent-course .three-boundaries i,
+.agent-course .tool-cards i,
+.agent-course .observability-grid i {
+    color: #0d6efd !important;
+}
+
+
+/* =========================================================
+   LANGGRAPH PAGE
+   Removes Purple Gradient
+   ========================================================= */
+
+.langgraph-hero {
+    background:
+        linear-gradient(
+            135deg,
+            #2aa2ff 0%,
+            #0d6efd 50%,
+            #0052cc 100%
+        ) !important;
+
+    box-shadow:
+        0 1rem 2.5rem rgba(13, 110, 253, 0.20) !important;
+}
+
+.icon-circle {
+    background: rgba(13, 110, 253, 0.12) !important;
+    color: #0d6efd !important;
+}
+
+.number-badge {
+    background: #0d6efd !important;
+}
+
+.comparison-box {
+    border-left-color: #0d6efd !important;
+}
+
+
+/* =========================================================
+   BOOTSTRAP PRIMARY HELPERS
+   ========================================================= */
+
+.text-primary {
+    color: #0d6efd !important;
+}
+
+.border-primary {
+    border-color: #0d6efd !important;
+}
+
+.bg-primary {
+    background-color: #0d6efd !important;
+}
+
+.alert-primary {
+    background-color: #e7f2ff !important;
+    border-color: #acd2ff !important;
+    color: #073b7a !important;
+}

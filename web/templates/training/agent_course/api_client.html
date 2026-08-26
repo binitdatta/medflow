@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}7. Agent-to-REST Boundary — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:47%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>7. Agent-to-REST Boundary</h1><p>Learn why tools call secured REST APIs instead of SQLAlchemy directly.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="flow-strip animated-flow mb-4"><div>LangChain Tool</div><i></i><div>api_get / api_post</div><i></i><div>Internal Headers</div><i></i><div>Flask REST API</div><i></i><div>@require_role</div><i></i><div>SQLAlchemy</div></div><div class="accordion code-accordion mb-4" id="acc-client"><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#code-client"><i class="bi bi-code-slash me-2"></i>Every tool crosses the REST boundary</button></h2><div id="code-client" class="accordion-collapse collapse" data-bs-parent="#acc-client"><div class="accordion-body p-0"><pre class="code-panel"><code>def _headers(staff_id, role):
+    return {
+        &quot;X-Service-Secret&quot;: SERVICE_SECRET,
+        &quot;X-Acting-Staff-Id&quot;: str(staff_id),
+        &quot;X-Acting-Role&quot;: role,
+        &quot;Content-Type&quot;: &quot;application/json&quot;,
+    }
+
+def api_get(path, staff_id, role, params=None):
+    resp = requests.get(
+        f&quot;{API_BASE_URL}{path}&quot;,
+        headers=_headers(staff_id, role),
+        params=params,
+        timeout=10,
+    )
+    return resp.status_code, _safe_json(resp)</code></pre></div></div></div></div><div class="comparison"><div><h3>Rejected shortcut</h3><p>Tool → SQLAlchemy → MySQL</p><small>Would duplicate authorization and couple agents directly to persistence.</small></div><div class="preferred"><h3>Implemented boundary</h3><p>Tool → secured REST API → SQLAlchemy</p><small>API role checks and business rules remain authoritative.</small></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_context_identity') }}"><i class="bi bi-arrow-left"></i> 6. Trusted Identity Context</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_chat_request') }}">8. Chat Session and Memory <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

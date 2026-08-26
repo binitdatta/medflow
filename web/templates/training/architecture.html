@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}Hospital Chain AI Platform Architecture{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+    <section class="training-hero p-4 p-lg-5 mb-4 rounded-4 shadow-sm">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-8">
+                <span class="badge text-bg-primary mb-3">Enterprise Architecture</span>
+                <h1 class="display-6 fw-bold mb-3">Hospital Chain Agentic AI Chatbot Platform</h1>
+                <p class="lead mb-3">
+                    A secure, role-aware healthcare assistant built with Python 3.12, Flask,
+                    Jinja, Bootstrap 5, REST APIs, LangChain, LangGraph, SQLAlchemy,
+                    MySQL 8.x, and Keycloak 26.
+                </p>
+                <p class="mb-0">
+                    This architecture supports nurses, physicians, management staff, legal teams,
+                    and service operators through specialized AI workflows, governed access,
+                    enterprise data services, and auditable integrations.
+                </p>
+            </div>
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <h2 class="h5 mb-3"><i class="bi bi-bullseye me-2"></i>Platform Purpose</h2>
+                        <p class="mb-0 text-body-secondary">
+                            Deliver secure, context-aware assistance to hospital personnel while
+                            preserving role boundaries, data protection, traceability, and operational control.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card shadow-sm mb-4">
+        <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            <div>
+                <h2 class="h4 mb-1"><i class="bi bi-diagram-3 me-2"></i>Enterprise Architecture Diagram</h2>
+                <div class="small text-body-secondary">
+                    Select the diagram to open the full-resolution image in a new browser tab.
+                </div>
+            </div>
+            <a class="btn btn-outline-primary btn-sm"
+               href="{{ url_for('static', filename='images/architecture.png') }}"
+               target="_blank" rel="noopener">
+                <i class="bi bi-arrows-fullscreen me-1"></i>Open Full Size
+            </a>
+        </div>
+        <div class="card-body p-2 p-lg-3 bg-body-secondary">
+            <a href="{{ url_for('static', filename='images/architecture.png') }}"
+               target="_blank" rel="noopener" class="d-block">
+                <img src="{{ url_for('static', filename='images/architecture.png') }}"
+                     class="img-fluid rounded-3 border bg-white w-100"
+                     alt="Hospital Chain Agentic AI Chatbot Platform enterprise architecture diagram"
+                     loading="eager">
+            </a>
+        </div>
+    </section>
+
+    <section class="mb-4">
+        <h2 class="h3 mb-3">Architecture at a Glance</h2>
+        <div class="row g-3">
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <i class="bi bi-people fs-3 text-primary"></i>
+                        <h3 class="h5 mt-3">Role-Based Users</h3>
+                        <p class="mb-0 text-body-secondary">Different hospital roles receive different tools, workflows, and data access.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <i class="bi bi-shield-lock fs-3 text-primary"></i>
+                        <h3 class="h5 mt-3">Identity and Security</h3>
+                        <p class="mb-0 text-body-secondary">Keycloak 26 provides authentication, tokens, role claims, and client separation.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <i class="bi bi-share fs-3 text-primary"></i>
+                        <h3 class="h5 mt-3">Agentic Orchestration</h3>
+                        <p class="mb-0 text-body-secondary">LangGraph routes requests through specialized, stateful, tool-using workflows.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <i class="bi bi-database fs-3 text-primary"></i>
+                        <h3 class="h5 mt-3">Enterprise Data</h3>
+                        <p class="mb-0 text-body-secondary">SQLAlchemy and MySQL 8.x persist users, sessions, clinical data, documents, and audit records.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="accordion shadow-sm" id="architectureAccordion">
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#usersPanel">
+                    <strong>1. Hospital Users and Role-Based Experiences</strong>
+                </button>
+            </h2>
+            <div id="usersPanel" class="accordion-collapse collapse show" data-bs-parent="#architectureAccordion">
+                <div class="accordion-body">
+                    <p>
+                        The platform is shared across the hospital chain, but the user experience is not identical for every person.
+                        Keycloak roles and application authorization rules determine which AI agent, APIs, records, and actions are available.
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-body"><h3 class="h6">Nurses</h3><p class="mb-0 small text-body-secondary">Vital signs, medication workflows, care plans, handovers, and patient-support activities.</p></div></div></div>
+                        <div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-body"><h3 class="h6">Physicians</h3><p class="mb-0 small text-body-secondary">Clinical history, diagnoses, orders, procedures, and decision-support workflows.</p></div></div></div>
+                        <div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-body"><h3 class="h6">Management Staff</h3><p class="mb-0 small text-body-secondary">KPIs, utilization, reports, staffing insights, and operational oversight.</p></div></div></div>
+                        <div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-body"><h3 class="h6">Legal Teams</h3><p class="mb-0 small text-body-secondary">Policies, contracts, compliance evidence, legal research, and case support.</p></div></div></div>
+                        <div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-body"><h3 class="h6">Service Operators</h3><p class="mb-0 small text-body-secondary">Facilities requests, maintenance tickets, asset records, and vendor coordination.</p></div></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#identityPanel">
+                    <strong>2. Keycloak 26 Authentication and Authorization</strong>
+                </button>
+            </h2>
+            <div id="identityPanel" class="accordion-collapse collapse" data-bs-parent="#architectureAccordion">
+                <div class="accordion-body">
+                    <p>
+                        Keycloak 26 acts as the OpenID Connect identity provider and OAuth 2.0 authorization server.
+                        It authenticates users, issues signed tokens, and supplies claims used by Flask and the AI layer.
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-lg-6">
+                            <div class="card h-100">
+                                <div class="card-header">PKCE Client for the UI</div>
+                                <div class="card-body">
+                                    <p class="mb-0">
+                                        The interactive web application uses Authorization Code Flow with PKCE.
+                                        The code verifier protects the authorization-code exchange and reduces the risk of code interception.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card h-100">
+                                <div class="card-header">Confidential Client for Testing</div>
+                                <div class="card-body">
+                                    <p class="mb-0">
+                                        Trusted API test tools and server-side processes use a confidential client with protected credentials.
+                                        This keeps interactive-user authentication separate from controlled machine or test access.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-warning mt-3 mb-0">
+                        Authentication establishes who the caller is. Authorization determines what the caller may view, invoke, modify, or approve.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#applicationPanel">
+                    <strong>3. Flask, Jinja, Bootstrap 5, and REST APIs</strong>
+                </button>
+            </h2>
+            <div id="applicationPanel" class="accordion-collapse collapse" data-bs-parent="#architectureAccordion">
+                <div class="accordion-body">
+                    <p>
+                        Python 3.12 and Flask provide the server-side application platform. Jinja renders the web experience,
+                        Bootstrap 5 supplies the responsive visual framework, and REST APIs expose reusable business capabilities.
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-lg-4"><div class="card h-100"><div class="card-body"><h3 class="h6">Web Layer</h3><p class="mb-0 small text-body-secondary">Chat, history, reports, documents, profile, and administrative pages.</p></div></div></div>
+                        <div class="col-lg-4"><div class="card h-100"><div class="card-body"><h3 class="h6">API Layer</h3><p class="mb-0 small text-body-secondary">JSON endpoints for chat, sessions, users, knowledge, documents, workflows, and administration.</p></div></div></div>
+                        <div class="col-lg-4"><div class="card h-100"><div class="card-body"><h3 class="h6">Business Services</h3><p class="mb-0 small text-body-secondary">Conversation, authorization, notification, document, audit, and domain-specific services.</p></div></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#aiPanel">
+                    <strong>4. LangGraph and LangChain AI Orchestration</strong>
+                </button>
+            </h2>
+            <div id="aiPanel" class="accordion-collapse collapse" data-bs-parent="#architectureAccordion">
+                <div class="accordion-body">
+                    <p>
+                        LangGraph controls the workflow: it carries state, chooses the next node, routes requests to authorized subgraphs,
+                        handles retries, and supports human approval. LangChain provides prompts, model wrappers, tools, retrievers,
+                        memory components, and structured-output utilities used inside those workflows.
+                    </p>
+                    <pre class="bg-dark text-light rounded-3 p-3 mb-3"><code>Authenticated request
+        ↓
+Intent and role evaluation
+        ↓
+Authorized role subgraph
+        ↓
+Tools, APIs, databases, or knowledge retrieval
+        ↓
+Validation and response synthesis
+        ↓
+Auditable response</code></pre>
+                    <div class="row g-3">
+                        <div class="col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><h3 class="h6">State</h3><p class="mb-0 small text-body-secondary">Conversation context, user identity, intermediate results, and workflow status.</p></div></div></div>
+                        <div class="col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><h3 class="h6">Conditional Routing</h3><p class="mb-0 small text-body-secondary">Selects the correct agent, tool, retry path, or rejection path.</p></div></div></div>
+                        <div class="col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><h3 class="h6">Tool Execution</h3><p class="mb-0 small text-body-secondary">Calls approved APIs, SQL queries, search services, and enterprise functions.</p></div></div></div>
+                        <div class="col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><h3 class="h6">Human Oversight</h3><p class="mb-0 small text-body-secondary">Pauses sensitive or irreversible actions for authorized review.</p></div></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#dataPanel">
+                    <strong>5. SQLAlchemy and MySQL 8.x Data Access</strong>
+                </button>
+            </h2>
+            <div id="dataPanel" class="accordion-collapse collapse" data-bs-parent="#architectureAccordion">
+                <div class="accordion-body">
+                    <p>
+                        SQLAlchemy provides ORM models, repositories, transaction management, and connection handling.
+                        MySQL 8.x stores application and operational records such as users, roles, patients, encounters,
+                        sessions, messages, documents, workflow state, and audit events.
+                    </p>
+                    <div class="alert alert-info mb-0">
+                        The AI model does not receive unrestricted database access. Application services and authorized tools mediate every data operation.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#integrationPanel">
+                    <strong>6. Integrations, Messaging, and External Systems</strong>
+                </button>
+            </h2>
+            <div id="integrationPanel" class="accordion-collapse collapse" data-bs-parent="#architectureAccordion">
+                <div class="accordion-body">
+                    <p>
+                        The platform can integrate with EHR or EMR systems, laboratory services, imaging systems, pharmacy,
+                        billing, insurance, notifications, document stores, and other hospital services.
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-md-6"><div class="card h-100"><div class="card-body"><h3 class="h6">Synchronous Integration</h3><p class="mb-0 small text-body-secondary">REST APIs support immediate request-response operations such as patient lookup or eligibility checks.</p></div></div></div>
+                        <div class="col-md-6"><div class="card h-100"><div class="card-body"><h3 class="h6">Asynchronous Integration</h3><p class="mb-0 small text-body-secondary">RabbitMQ, workers, and scheduled jobs support long-running, resilient, and decoupled processing.</p></div></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#operationsPanel">
+                    <strong>7. Observability, Deployment, and Enterprise Controls</strong>
+                </button>
+            </h2>
+            <div id="operationsPanel" class="accordion-collapse collapse" data-bs-parent="#architectureAccordion">
+                <div class="accordion-body">
+                    <p>
+                        Enterprise operation requires more than a functional chatbot. The platform also needs structured logging,
+                        metrics, distributed tracing, dashboards, alerting, container deployment, environment separation,
+                        encryption, role-based access control, and auditability.
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><h3 class="h6">Observability</h3><p class="mb-0 small text-body-secondary">Logs, metrics, traces, dashboards, and operational alerts.</p></div></div></div>
+                        <div class="col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><h3 class="h6">Deployment</h3><p class="mb-0 small text-body-secondary">Containers, reverse proxy, CI/CD, and controlled development, test, and production environments.</p></div></div></div>
+                        <div class="col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><h3 class="h6">Security</h3><p class="mb-0 small text-body-secondary">TLS, token validation, RBAC, encrypted data, and protected secrets.</p></div></div></div>
+                        <div class="col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><h3 class="h6">Auditability</h3><p class="mb-0 small text-body-secondary">Traceable user actions, model decisions, tool calls, approvals, and data changes.</p></div></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="card shadow-sm mt-4">
+        <div class="card-header">
+            <h2 class="h4 mb-0"><i class="bi bi-arrow-right-circle me-2"></i>End-to-End Request Flow</h2>
+        </div>
+        <div class="card-body">
+            <ol class="mb-0">
+                <li class="mb-2">A hospital user signs in through Keycloak 26.</li>
+                <li class="mb-2">The Flask application receives and validates identity and role information.</li>
+                <li class="mb-2">The user submits a request through the Jinja and Bootstrap chat interface.</li>
+                <li class="mb-2">The REST API validates the request and creates or resumes the conversation state.</li>
+                <li class="mb-2">LangGraph routes the request to the authorized role-specific subgraph.</li>
+                <li class="mb-2">LangChain tools call approved databases, APIs, search services, or background workers.</li>
+                <li class="mb-2">Business rules and authorization checks validate the result.</li>
+                <li class="mb-2">The response is returned to the user and relevant activity is recorded for audit and observability.</li>
+            </ol>
+        </div>
+    </section>
+
+</div>
+{% endblock %}

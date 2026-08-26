@@ -1,0 +1,84 @@
+from flask import Blueprint, render_template, session, redirect, url_for, flash
+
+web_bp = Blueprint("web", __name__, template_folder="templates")
+
+def _require_login():
+    return session.get("staff_id") is not None
+
+def _require_admin():
+    return session.get("role") == "ADMIN"
+
+@web_bp.route("/admin/usage")
+def admin_usage():
+    if not _require_login():
+        return redirect(url_for("web.login_page"))
+    if not _require_admin():
+        flash("The Usage & Cost dashboard is restricted to ADMIN accounts.", "warning")
+        return redirect(url_for("web.dashboard"))
+    return render_template(
+        "admin_usage.html",
+        role=session.get("role"),
+        display_name=session.get("display_name"),
+    )
+
+@web_bp.route("/")
+def index():
+    if _require_login():
+        return redirect(url_for("web.dashboard"))
+    return redirect(url_for("web.login_page"))
+
+
+@web_bp.route("/login")
+def login_page():
+    return render_template("login.html")
+
+
+@web_bp.route("/dashboard")
+def dashboard():
+    if not _require_login():
+        return redirect(url_for("web.login_page"))
+    return render_template(
+        "dashboard.html",
+        role=session.get("role"),
+        display_name=session.get("display_name"),
+    )
+
+
+@web_bp.route("/chat")
+def chat_page():
+    if not _require_login():
+        return redirect(url_for("web.login_page"))
+    return render_template(
+        "chat.html",
+        role=session.get("role"),
+        display_name=session.get("display_name"),
+    )
+
+
+@web_bp.route("/training")
+def training_index():
+    return render_template("training/index.html")
+
+
+@web_bp.route("/training/architecture")
+def training_architecture():
+    return render_template("training/architecture.html")
+
+
+@web_bp.route("/training/rbac")
+def training_rbac():
+    return render_template("training/rbac.html")
+
+
+@web_bp.route("/training/audit")
+def training_audit():
+    return render_template("training/audit.html")
+
+
+@web_bp.route("/training/hl7-fhir")
+def training_hl7_fhir():
+    return render_template("training/hl7_fhir.html")
+
+@web_bp.route("/training/genai-agentic-langgraph")
+def training_genai_agentic_langgraph():
+    return render_template("training/genai_agentic_langgraph.html")

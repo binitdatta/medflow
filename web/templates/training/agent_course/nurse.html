@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}10. Nurse Subgraph — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:67%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>10. Nurse Subgraph</h1><p>Walk through nursing tools and a medication-schedule request.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="tool-cards mb-4"><div><i class="bi bi-people"></i><b>get_unit_patients</b><span>Current unit census</span></div><div><i class="bi bi-capsule"></i><b>get_medication_schedule</b><span>Active medications due</span></div><div><i class="bi bi-check2-square"></i><b>record_medication_administration</b><span>Write administration record</span></div><div><i class="bi bi-hospital"></i><b>get_bed_status</b><span>Availability and status</span></div></div>
+<div class="flow-strip animated-flow mb-4"><div>Nurse question</div><i></i><div>System prompt</div><i></i><div>get_medication_schedule</div><i></i><div>GET /api/encounters/.../medication-requests</div><i></i><div>Clinical response</div></div><div class="accordion code-accordion mb-4" id="acc-nurse"><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#code-nurse"><i class="bi bi-code-slash me-2"></i>Nurse tool implementation</button></h2><div id="code-nurse" class="accordion-collapse collapse" data-bs-parent="#acc-nurse"><div class="accordion-body p-0"><pre class="code-panel"><code>@tool
+def get_medication_schedule(encounter_id: int) -&gt; dict:
+    &quot;&quot;&quot;Get active medication requests for a specific encounter.&quot;&quot;&quot;
+    status, data = api_get(
+        f&quot;/api/encounters/{encounter_id}/medication-requests&quot;,
+        current_staff_id.get(), current_role.get(),
+        params={&quot;status&quot;: &quot;ACTIVE&quot;},
+    )
+    return {&quot;status&quot;: status, &quot;data&quot;: data}</code></pre></div></div></div></div><div class="callout"><i class="bi bi-clipboard2-pulse"></i><div><strong>Prompt-level operating instruction</strong><p>The nurse prompt requires concise clinical language and asks the assistant to repeat identifiers so the nurse can verify the action.</p></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_role_subgraphs') }}"><i class="bi bi-arrow-left"></i> 9. Role-Specific Subgraphs</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_physician') }}">11. Physician Subgraph <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

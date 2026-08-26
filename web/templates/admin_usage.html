@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Usage & Cost — MedFlow{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<h3>Usage &amp; Cost Dashboard</h3>
+<p class="text-muted">HTTP and Anthropic LLM call activity across all roles. Restricted to ADMIN accounts.</p>
+
+<form id="filterForm" class="row g-2 align-items-end mb-4">
+    <div class="col-auto">
+        <label for="startDate" class="form-label mb-0 small text-muted">Start date</label>
+        <input type="date" id="startDate" class="form-control form-control-sm">
+    </div>
+    <div class="col-auto">
+        <label for="endDate" class="form-label mb-0 small text-muted">End date</label>
+        <input type="date" id="endDate" class="form-control form-control-sm">
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+    </div>
+</form>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted small">Total Cost (USD)</div>
+                <div class="fs-3 fw-bold" id="statTotalCost">—</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted small">Total LLM Calls</div>
+                <div class="fs-3 fw-bold" id="statTotalCalls">—</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted small">Date Range</div>
+                <div class="fs-6 fw-bold" id="statDateRange">—</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted small">Avg Cost / Call</div>
+                <div class="fs-3 fw-bold" id="statAvgCost">—</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Cost by Role</div>
+            <div class="card-body">
+                <canvas id="costByRoleChart" height="220"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Cost by Day</div>
+            <div class="card-body">
+                <canvas id="costByDayChart" height="220"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>LLM Calls (Anthropic)</span>
+        <a id="exportLlmCsv" href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i> Export CSV</a>
+    </div>
+    <div class="card-body admin-table-scroll">
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    <th>Time</th><th>Role</th><th>Model</th><th>In</th><th>Out</th><th>Cost</th><th>Latency</th>
+                </tr>
+            </thead>
+            <tbody id="llmCallsBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>HTTP Calls</span>
+        <a id="exportHttpCsv" href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i> Export CSV</a>
+    </div>
+    <div class="card-body admin-table-scroll">
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    <th>Time</th><th>Role</th><th>Method</th><th>Path</th><th>Status</th><th>Duration</th>
+                </tr>
+            </thead>
+            <tbody id="httpCallsBody"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin_usage.js') }}"></script>
+{% endblock %}

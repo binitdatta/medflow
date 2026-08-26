@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}13. Management, Finance and Legal — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:87%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>13. Management, Finance and Legal</h1><p>Understand aggregate-only, billing-only and audit-only boundaries.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="three-boundaries"><div><i class="bi bi-graph-up"></i><h3>Management</h3><p>Occupancy, encounter volume, inventory and revenue summaries.</p><strong>Aggregate only</strong></div><div><i class="bi bi-cash-coin"></i><h3>Finance</h3><p>Claims, payer, status and revenue totals.</p><strong>No clinical detail</strong></div><div><i class="bi bi-shield-check"></i><h3>Legal</h3><p>Patient, staff and general audit-trail queries.</p><strong>Read-only evidence</strong></div></div><div class="accordion code-accordion mb-4" id="acc-legal"><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#code-legal"><i class="bi bi-code-slash me-2"></i>Legal prompt prevents unsupported conclusions</button></h2><div id="code-legal" class="accordion-collapse collapse" data-bs-parent="#acc-legal"><div class="accordion-body p-0"><pre class="code-panel"><code>When reporting results, state exactly what the audit trail shows — who,
+what action, what resource, and when — without speculating about intent or
+drawing conclusions about whether an access was appropriate. That judgment
+belongs to the human reviewing the report.</code></pre></div></div></div></div><div class="callout"><i class="bi bi-funnel"></i><div><strong>Data minimization</strong><p>These are not merely different chat personalities. Their API payloads and toolsets intentionally expose different categories and levels of detail.</p></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_admissions_pharmacy') }}"><i class="bi bi-arrow-left"></i> 12. Admissions and Pharmacy</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_security_observability') }}">14. Security, Audit and Observability <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

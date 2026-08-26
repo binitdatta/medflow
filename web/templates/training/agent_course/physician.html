@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}11. Physician Subgraph — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:73%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>11. Physician Subgraph</h1><p>Walk through chart-first clinical reasoning and write operations.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="clinical-gate mb-4"><div class="gate-first"><i class="bi bi-file-medical"></i><strong>get_patient_chart</strong><span>Required first step</span></div><div class="gate-arrow">then</div><div class="gate-actions"><span>create_diagnosis</span><span>create_lab_order</span><span>get_lab_results</span><span>create_medication_request</span></div></div><div class="accordion code-accordion mb-4" id="acc-physician"><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#code-physician"><i class="bi bi-code-slash me-2"></i>Chart-first system-prompt rule</button></h2><div id="code-physician" class="accordion-collapse collapse" data-bs-parent="#acc-physician"><div class="accordion-body p-0"><pre class="code-panel"><code>Always call get_patient_chart before recording a new diagnosis or
+prescribing a medication, so you&#x27;re acting on current information rather
+than assuming.
+
+If asked to draft a discharge summary: first call get_patient_chart,
+then write the summary directly in the response. Do not fabricate any
+clinical detail that is not present in the retrieved chart data.</code></pre></div></div></div></div><div class="callout"><i class="bi bi-heart-pulse"></i><div><strong>Reasoning is constrained by retrieved data</strong><p>LangGraph provides the loop, the prompt sets the clinical sequence, tools retrieve or mutate records, and the REST API remains the final authorization boundary.</p></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_nurse') }}"><i class="bi bi-arrow-left"></i> 10. Nurse Subgraph</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_admissions_pharmacy') }}">12. Admissions and Pharmacy <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

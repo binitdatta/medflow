@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}GenAI, Agents &amp; LangGraph — MedFlow Training{% endblock %}
+{% block content %}
+<div class="training-hero mb-4">
+    <h2>Generative AI, AI Agents, Agentic AI, LangChain &amp; LangGraph</h2>
+    <p class="mb-0">The five terms that get used almost interchangeably in
+    vendor decks — and aren't the same thing. This page draws the lines
+    between them, then uses LangGraph's role-based routing (the exact
+    pattern MedFlow itself runs on) as the running real-world example.</p>
+</div>
+
+<div class="row g-3 mb-5">
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-magic"></i> Generative AI</div>
+            <div class="card-body">
+                <p>A model that produces new content — text, code, images,
+                audio — by predicting what comes next, trained on large
+                amounts of existing content.</p>
+                <p class="mb-0 text-muted small"><strong>Example:</strong>
+                Claude writing a discharge summary paragraph, or an image
+                model generating a picture from a text prompt. One prompt
+                in, one output out — no memory of what happened before,
+                no ability to go do something in the world.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-cpu"></i> AI Agent</div>
+            <div class="card-body">
+                <p>A generative model given <strong>tools</strong> it can
+                choose to call — a weather API, a database query, a search
+                function — plus enough structure to decide <em>which</em>
+                tool fits the request and act on the result.</p>
+                <p class="mb-0 text-muted small"><strong>Example:</strong>
+                A single MedFlow tool call — the Pharmacist assistant
+                calling <code>check_drug_interactions("warfarin", "aspirin")</code>
+                instead of guessing the interaction from memory. One
+                decision, one tool, one result.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-diagram-3"></i> Agentic AI</div>
+            <div class="card-body">
+                <p>Multiple tool calls chained across multiple steps,
+                with the model deciding the <em>order</em>, checking its
+                own results, and looping back to try again — not a fixed
+                script, a genuine multi-step decision process.</p>
+                <p class="mb-0 text-muted small"><strong>Example:</strong>
+                Physician subgraph's "check the chart, then order a CT only
+                if one hasn't already been ordered" prompt from Phase 2
+                testing — that's the model reading a result and deciding
+                its next action, not just executing a checklist.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-link-45deg"></i> LangChain</div>
+            <div class="card-body">
+                <p>A library of building blocks for LLM apps: prompt
+                templates, standardized tool definitions (the
+                <code>@tool</code> decorator you've seen in every
+                <code>agent/subgraphs/*.py</code> file), and wrappers
+                around model providers like Anthropic.</p>
+                <p class="mb-0 text-muted small"><strong>Example:</strong>
+                Every function in <code>agent/subgraphs/nurse.py</code> —
+                LangChain turns a plain Python function into something
+                Claude can see and decide to call, just by adding one
+                decorator.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-share"></i> LangGraph</div>
+            <div class="card-body">
+                <p>Sits on top of LangChain and adds the missing piece:
+                explicit <strong>control flow</strong> — a graph of named
+                steps ("nodes") and rules for which node runs next
+                ("edges"), so an agent's behavior is a diagram you can
+                draw, not just a prompt you hope behaves consistently.</p>
+                <p class="mb-0 text-muted small"><strong>Example:</strong>
+                the whole rest of this page.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h3 class="mb-3">LangGraph — Real-Life Examples</h3>
+<p class="text-muted mb-4">Same underlying pattern (a small loop of "decide
+→ act → check → repeat," with an explicit boundary around who can trigger
+which branch) shows up everywhere once you know to look for it. Click
+through each one.</p>
+
+<div class="accordion mb-5" id="langgraphAccordion">
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#lgExample1">
+                1. MedFlow itself — role-routed, multi-tool ReAct loop
+            </button>
+        </h2>
+        <div id="lgExample1" class="accordion-collapse collapse show" data-bs-parent="#langgraphAccordion">
+            <div class="accordion-body">
+                <p>You're looking at a live one. Every chat message you send
+                becomes a LangGraph run with exactly two nodes:</p>
+                <pre class="code-block">agent  --tool call requested-->  tools
+  ^                                    |
+  |____________________________________|
+  |
+  no tool call requested
+  |
+  v
+ END</pre>
+                <p><strong>Why a graph instead of one big prompt:</strong>
+                the role (Nurse, Pharmacist, Physician, ...) is decided
+                <em>before</em> the graph even starts — by
+                <code>agent/graph.py</code>'s <code>ROLE_CONFIG</code>
+                lookup, driven by your Keycloak login, never by anything
+                you type in chat. The graph then loops between the LLM
+                deciding what to do and a tool actually doing it, as many
+                times as needed, until the LLM has a final answer with no
+                more tool calls left to make.</p>
+                <p class="mb-0">See <a href="{{ url_for('web.training_architecture') }}">Architecture Walkthrough</a>
+                for the full request path.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#lgExample2">
+                2. Customer support triage — route to the right specialist
+            </button>
+        </h2>
+        <div id="lgExample2" class="accordion-collapse collapse" data-bs-parent="#langgraphAccordion">
+            <div class="accordion-body">
+                <p>A support inbox gets tickets about billing, technical
+                bugs, and account access. A LangGraph router node reads the
+                incoming ticket, classifies it, and sends it down one of
+                three branches — a Billing subgraph with refund/invoice
+                tools, a Technical subgraph with log-lookup tools, an
+                Account subgraph with password-reset tools.</p>
+                <p class="mb-0"><strong>Same shape as MedFlow's role_router</strong>
+                — the only real difference is MedFlow's "classification" is
+                a login (Keycloak role), not a text-classification step,
+                which is a deliberately safer design: the router can't be
+                talked into misrouting by clever ticket text, the way a
+                text-classified support router theoretically could be.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#lgExample3">
+                3. Travel booking assistant — loop until everything's confirmed
+            </button>
+        </h2>
+        <div id="lgExample3" class="accordion-collapse collapse" data-bs-parent="#langgraphAccordion">
+            <div class="accordion-body">
+                <p>"Book me a trip to Chicago next weekend" needs a flight
+                search tool, a hotel search tool, and a car rental tool —
+                and the results of each affect the others (no point
+                booking a hotel far from where the cheapest flight lands).
+                A LangGraph loop keeps calling tools and re-evaluating
+                until it has a coherent itinerary, then stops and presents
+                it rather than booking anything automatically.</p>
+                <p class="mb-0"><strong>Same shape as</strong> the
+                Physician subgraph's chart-then-CT-order prompt: call a
+                tool, look at what came back, decide whether the next tool
+                call is actually still needed, instead of blindly running
+                every tool every time.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#lgExample4">
+                4. Human-in-the-loop approval — pause before an irreversible action
+            </button>
+        </h2>
+        <div id="lgExample4" class="accordion-collapse collapse" data-bs-parent="#langgraphAccordion">
+            <div class="accordion-body">
+                <p>A content moderation system drafts a takedown notice,
+                then a node in the graph deliberately stops and waits for a
+                human reviewer to approve before the "actually delete this"
+                tool is allowed to run. The graph has a real pause built
+                into its structure, not just a prompt asking the model to
+                "please confirm first" and hoping it remembers to.</p>
+                <p class="mb-0"><strong>Same shape as</strong> the Nurse
+                subgraph's medication-administration confirmation you
+                tested in Phase 1 — the assistant asks "shall I proceed?"
+                before <code>record_medication_administration</code> runs,
+                and (after the multi-turn memory fix) actually carries that
+                pending confirmation into the next message correctly.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#lgExample5">
+                5. Research assistant — search, read, decide if you have enough
+            </button>
+        </h2>
+        <div id="lgExample5" class="accordion-collapse collapse" data-bs-parent="#langgraphAccordion">
+            <div class="accordion-body">
+                <p>"Summarize the last month of news on X" can't be
+                answered with one search call. A LangGraph loop searches,
+                reads results, decides whether it has enough to answer
+                confidently, and if not, searches again with a refined
+                query — possibly several times — before finally writing
+                the summary.</p>
+                <p class="mb-0"><strong>Same shape as</strong> the Legal
+                subgraph's audit-trail tools: <code>browse_audit_trail</code>
+                might come back with nothing useful for a vague question,
+                and a well-built graph tries <code>get_audit_trail_for_staff</code>
+                or narrows the date range next, rather than giving up after
+                one empty result.</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="card">
+    <div class="card-header"><i class="bi bi-lightbulb"></i> The one-sentence version of each</div>
+    <div class="card-body">
+        <table class="table table-sm mb-0">
+            <tr><td style="width:200px"><strong>Generative AI</strong></td><td>Predicts and produces content.</td></tr>
+            <tr><td><strong>AI Agent</strong></td><td>Generative AI that can call one tool to act on a decision.</td></tr>
+            <tr><td><strong>Agentic AI</strong></td><td>An agent that chains multiple decisions and tool calls, checking its own work along the way.</td></tr>
+            <tr><td><strong>LangChain</strong></td><td>The toolkit for defining prompts, tools, and model calls.</td></tr>
+            <tr><td><strong>LangGraph</strong></td><td>The toolkit for defining <em>which order</em> those tools and decisions run in, as an explicit, inspectable graph.</td></tr>
+        </table>
+    </div>
+</div>
+{% endblock %}

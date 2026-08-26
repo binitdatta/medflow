@@ -1,0 +1,3469 @@
+============================================================
+FILE: app.py
+============================================================
+
+import os
+import time
+
+from flask import Flask, g, request
+
+from config import Config
+from extensions import db
+
+# Paths we don't bother logging -- static assets are noise, not integration events.
+_HTTP_LOG_EXCLUDED_PREFIXES = ("/static",)
+
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
+
+    db.init_app(app)
+
+    # Import models so SQLAlchemy metadata is registered (used by scripts/init_db.py,
+    # not for auto-migration -- DDL is DBA-owned, see db/ddl.sql).
+    import models  # noqa: F401
+
+    # Auth middleware resolves the caller identity (browser session / Bearer JWT /
+    # internal agent service channel) before every request.
+    from auth.middleware import resolve_identity
+    app.before_request(resolve_identity)
+
+    @app.before_request
+    def _start_http_log_timer():
+        g._http_log_start = time.time()
+        try:
+            g._http_log_request_body = request.get_data(as_text=True)
+        except Exception:
+            g._http_log_request_body = None
+
+    @app.after_request
+    def _write_http_log(response):
+        # Logging must never break the actual response -- wrap the whole
+        # thing and always return `response` regardless of outcome.
+        try:
+            if not request.path.startswith(_HTTP_LOG_EXCLUDED_PREFIXES) and not getattr(
+                response, "direct_passthrough", False
+            ):
+                from services.logging_service import log_http_call
+
+                duration_ms = int((time.time() - getattr(g, "_http_log_start", time.time())) * 1000)
+                log_http_call(
+                    staff_id=getattr(g, "staff_id", None),
+                    actor_role=getattr(g, "role", None),
+                    method=request.method,
+                    path=request.path,
+                    query_string=request.query_string.decode("utf-8", errors="ignore"),
+                    request_body=getattr(g, "_http_log_request_body", None),
+                    response_status=response.status_code,
+                    response_body=response.get_data(as_text=True),
+                    duration_ms=duration_ms,
+                    ip_address=request.remote_addr,
+                )
+        except Exception as exc:
+            app.logger.warning(f"HTTP call logging failed: {exc}")
+        return response
+
+    from auth.routes import auth_bp
+    app.register_blueprint(auth_bp)
+
+    from web.routes import web_bp
+    app.register_blueprint(web_bp)
+
+    from api import register_api_blueprints
+    register_api_blueprints(app)
+
+    return app
+
+
+if __name__ == "__main__":
+    app = create_app()
+    port = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=app.config["DEBUG"])
+
+============================================================
+FILE: config.py
+============================================================
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+class Config:
+    SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "dev-only-not-secure")
+    DEBUG = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+
+    MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
+    MYSQL_PORT = os.getenv("MYSQL_PORT", "3306")
+    MYSQL_USER = os.getenv("MYSQL_USER", "medflow_app")
+    MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
+    MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "medflow")
+
+    SQLALCHEMY_DATABASE_URI = (
+        f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}"
+        f"@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 280}
+
+    API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:5000")
+
+    KEYCLOAK_BASE_URL = os.getenv("KEYCLOAK_BASE_URL", "http://localhost:8080")
+    KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "medflow")
+    KEYCLOAK_PUBLIC_CLIENT_ID = os.getenv("KEYCLOAK_PUBLIC_CLIENT_ID", "medflow-web")
+    KEYCLOAK_CONFIDENTIAL_CLIENT_ID = os.getenv("KEYCLOAK_CONFIDENTIAL_CLIENT_ID", "medflow-service")
+    KEYCLOAK_CONFIDENTIAL_CLIENT_SECRET = os.getenv("KEYCLOAK_CONFIDENTIAL_CLIENT_SECRET", "")
+    KEYCLOAK_REDIRECT_URI = os.getenv("KEYCLOAK_REDIRECT_URI", "http://localhost:5000/auth/callback")
+
+    @property
+    def KEYCLOAK_ISSUER(self):
+        return f"{self.KEYCLOAK_BASE_URL}/realms/{self.KEYCLOAK_REALM}"
+
+    @property
+    def KEYCLOAK_AUTH_URL(self):
+        return f"{self.KEYCLOAK_ISSUER}/protocol/openid-connect/auth"
+
+    @property
+    def KEYCLOAK_TOKEN_URL(self):
+        return f"{self.KEYCLOAK_ISSUER}/protocol/openid-connect/token"
+
+    @property
+    def KEYCLOAK_CERTS_URL(self):
+        return f"{self.KEYCLOAK_ISSUER}/protocol/openid-connect/certs"
+
+    @property
+    def KEYCLOAK_LOGOUT_URL(self):
+        return f"{self.KEYCLOAK_ISSUER}/protocol/openid-connect/logout"
+
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+    ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+
+
+============================================================
+FILE: extensions.py
+============================================================
+
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+
+
+============================================================
+FILE: requirements.txt
+============================================================
+
+Flask==3.1.0
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.36
+PyMySQL==1.1.1
+cryptography==43.0.3
+python-dotenv==1.0.1
+requests==2.32.3
+PyJWT==2.9.0
+langchain==0.3.14
+langchain-core>=0.3.30,<0.4.0
+langgraph==0.2.60
+langchain-anthropic==0.3.3
+gunicorn==23.0.0
+
+
+============================================================
+FILE: agent/state.py
+============================================================
+
+from typing import Literal, Optional, TypedDict
+
+
+Role = Literal[
+    "PHYSICIAN", "NURSE", "PHARMACIST", "ADMISSIONS",
+    "FINANCE", "MANAGEMENT", "LEGAL", "ADMIN",
+]
+
+
+class ToolResult(TypedDict, total=False):
+    tool_name: str
+    action: str            # READ | CREATE | UPDATE | DELETE
+    resource_type: str
+    resource_id: Optional[int]
+    phi_accessed: bool
+    data: object
+
+
+class MedFlowState(TypedDict, total=False):
+    user_query: str
+    staff_id: int
+    role: Role
+    hospital_scope: Optional[int]
+    intent: Optional[str]
+    tool_results: list
+    response: Optional[str]
+
+
+============================================================
+FILE: agent/context.py
+============================================================
+
+"""
+Tools never accept staff_id/role/hospital_id as LLM-supplied arguments --
+that would let a cleverly-worded prompt impersonate a different user. Instead
+these contextvars are set once by run_agent() from the *already-authenticated*
+Flask session before the graph runs, and every tool reads from here when it
+calls the REST API. chat_session_id is carried the same way purely for
+logging (services/logging_service.py) -- it's never used for authorization.
+"""
+from contextvars import ContextVar
+
+current_staff_id: ContextVar[int] = ContextVar("current_staff_id", default=None)
+current_role: ContextVar[str] = ContextVar("current_role", default=None)
+current_hospital_id: ContextVar[int] = ContextVar("current_hospital_id", default=None)
+current_chat_session_id: ContextVar[int] = ContextVar("current_chat_session_id", default=None)
+
+
+def set_identity(staff_id, role, hospital_id, chat_session_id=None):
+    current_staff_id.set(staff_id)
+    current_role.set(role)
+    current_hospital_id.set(hospital_id)
+    current_chat_session_id.set(chat_session_id)
+
+============================================================
+FILE: agent/api_client.py
+============================================================
+
+"""
+Every LangGraph tool goes through this client rather than touching
+SQLAlchemy directly -- that's the point of the architecture: the agent only
+ever "sees" the same REST surface a human-built UI would, and the Flask
+endpoint re-checks the role independently (see auth/middleware.py, Path 3).
+"""
+import os
+
+import requests
+
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:5000")
+SERVICE_SECRET = os.getenv("KEYCLOAK_CONFIDENTIAL_CLIENT_SECRET", "")
+
+
+def _headers(staff_id, role):
+    return {
+        "X-Service-Secret": SERVICE_SECRET,
+        "X-Acting-Staff-Id": str(staff_id),
+        "X-Acting-Role": role,
+        "Content-Type": "application/json",
+    }
+
+
+def api_get(path, staff_id, role, params=None):
+    resp = requests.get(f"{API_BASE_URL}{path}", headers=_headers(staff_id, role), params=params, timeout=10)
+    return resp.status_code, _safe_json(resp)
+
+
+def api_post(path, staff_id, role, json_body=None):
+    resp = requests.post(f"{API_BASE_URL}{path}", headers=_headers(staff_id, role), json=json_body or {}, timeout=10)
+    return resp.status_code, _safe_json(resp)
+
+
+def _safe_json(resp):
+    try:
+        return resp.json()
+    except ValueError:
+        return {"error": "non-json response", "status_code": resp.status_code}
+
+
+============================================================
+FILE: agent/pricing.py
+============================================================
+
+"""
+Per-model USD pricing used only to compute the cost_usd estimate stored in
+llm_call_log. Rates below were verified against multiple sources (Anthropic's
+own pricing docs plus independent trackers) as of July 2026 -- confirm
+against https://platform.claude.com/docs/en/about-claude/pricing before
+trusting cost_usd for anything real (budgeting, chargeback, etc.), since
+Anthropic updates pricing over time and this file is not auto-synced to it.
+"""
+
+# USD per 1,000,000 tokens. Key must match the ANTHROPIC_MODEL value exactly.
+PRICING_TABLE = {
+    "claude-sonnet-4-6": {"input_per_mtok": 3.00, "output_per_mtok": 15.00},
+    "claude-sonnet-5": {"input_per_mtok": 2.00, "output_per_mtok": 10.00},  # intro pricing through 2026-08-31; $3/$15 standard after
+    "claude-opus-4-8": {"input_per_mtok": 5.00, "output_per_mtok": 25.00},
+    "claude-haiku-4-5-20251001": {"input_per_mtok": 1.00, "output_per_mtok": 5.00},
+}
+
+
+def get_pricing_for_model(model_name):
+    return PRICING_TABLE.get(model_name)
+
+============================================================
+FILE: agent/graph.py
+============================================================
+
+"""
+Phase 1 roles: NURSE, PHARMACIST, ADMISSIONS.
+Physician / Finance / Management / Legal are wired into ROLE_CONFIG as
+placeholders -- see README "Phase 2" section for how to add a new subgraph
+without touching this file's structure.
+
+Each role subgraph is a small ReAct loop:
+
+    agent (LLM decides: answer, or call a tool)
+      -> tools (executes any requested tool calls against the Flask REST API)
+      -> back to agent
+      -> END once the LLM responds with no further tool calls
+
+Role is fixed for the whole graph run (never re-derived from user text), and
+is used only to (a) pick the toolset/system prompt and (b) populate the
+identity contextvars that tools use when calling the REST API.
+"""
+import operator
+import time
+from typing import Annotated, TypedDict
+
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langgraph.graph import StateGraph, END
+
+from .context import set_identity, current_staff_id, current_role, current_chat_session_id
+from .subgraphs.nurse import NURSE_TOOLS, NURSE_SYSTEM_PROMPT
+from .subgraphs.pharmacy import PHARMACY_TOOLS, PHARMACY_SYSTEM_PROMPT
+from .subgraphs.admissions import ADMISSIONS_TOOLS, ADMISSIONS_SYSTEM_PROMPT
+from services.logging_service import log_llm_call
+
+from .subgraphs.physician import PHYSICIAN_TOOLS, PHYSICIAN_SYSTEM_PROMPT
+from .subgraphs.finance import FINANCE_TOOLS, FINANCE_SYSTEM_PROMPT
+from .subgraphs.management import MANAGEMENT_TOOLS, MANAGEMENT_SYSTEM_PROMPT
+from .subgraphs.legal import LEGAL_TOOLS, LEGAL_SYSTEM_PROMPT
+
+import os
+
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+
+
+class AgentState(TypedDict):
+    messages: Annotated[list[BaseMessage], operator.add]
+
+
+ROLE_CONFIG = {
+    "NURSE": (NURSE_TOOLS, NURSE_SYSTEM_PROMPT),
+    "PHARMACIST": (PHARMACY_TOOLS, PHARMACY_SYSTEM_PROMPT),
+    "ADMISSIONS": (ADMISSIONS_TOOLS, ADMISSIONS_SYSTEM_PROMPT),
+    "PHYSICIAN": (PHYSICIAN_TOOLS, PHYSICIAN_SYSTEM_PROMPT),
+    "FINANCE": (FINANCE_TOOLS, FINANCE_SYSTEM_PROMPT),
+    "MANAGEMENT": (MANAGEMENT_TOOLS, MANAGEMENT_SYSTEM_PROMPT),
+    "LEGAL": (LEGAL_TOOLS, LEGAL_SYSTEM_PROMPT),
+}
+
+_COMPILED_GRAPHS = {}
+
+
+def _build_graph(tools):
+    llm = ChatAnthropic(model=ANTHROPIC_MODEL, temperature=0).bind_tools(tools)
+    tool_map = {t.name: t for t in tools}
+
+    def agent_node(state: AgentState):
+        start = time.time()
+        response = llm.invoke(state["messages"])
+        latency_ms = int((time.time() - start) * 1000)
+
+        usage = getattr(response, "usage_metadata", None) or {}
+        input_tokens = usage.get("input_tokens")
+        output_tokens = usage.get("output_tokens")
+        if input_tokens is None or output_tokens is None:
+            # Fallback for LangChain/langchain-anthropic versions that only
+            # populate the raw provider usage block rather than the
+            # standardized usage_metadata attribute.
+            raw_usage = (getattr(response, "response_metadata", None) or {}).get("usage", {})
+            input_tokens = input_tokens if input_tokens is not None else raw_usage.get("input_tokens")
+            output_tokens = output_tokens if output_tokens is not None else raw_usage.get("output_tokens")
+
+        try:
+            log_llm_call(
+                staff_id=current_staff_id.get(),
+                actor_role=current_role.get(),
+                chat_session_id=current_chat_session_id.get(),
+                model=ANTHROPIC_MODEL,
+                request_messages=state["messages"],
+                response_message=response,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                latency_ms=latency_ms,
+            )
+        except Exception:
+            pass  # logging must never break the chat turn itself
+
+        return {"messages": [response]}
+
+    def tools_node(state: AgentState):
+        last = state["messages"][-1]
+        results = []
+        for call in last.tool_calls:
+            tool_fn = tool_map[call["name"]]
+            try:
+                output = tool_fn.invoke(call["args"])
+            except Exception as exc:  # keep the loop alive, surface the error to the LLM
+                output = {"status": 500, "error": str(exc)}
+            results.append(ToolMessage(content=str(output), tool_call_id=call["id"], name=call["name"]))
+        return {"messages": results}
+
+    def should_continue(state: AgentState):
+        last = state["messages"][-1]
+        if isinstance(last, AIMessage) and getattr(last, "tool_calls", None):
+            return "tools"
+        return "end"
+
+    graph = StateGraph(AgentState)
+    graph.add_node("agent", agent_node)
+    graph.add_node("tools", tools_node)
+    graph.set_entry_point("agent")
+    graph.add_conditional_edges("agent", should_continue, {"tools": "tools", "end": END})
+    graph.add_edge("tools", "agent")
+    return graph.compile()
+
+
+def _get_graph_for_role(role):
+    if role not in _COMPILED_GRAPHS:
+        tools, _ = ROLE_CONFIG[role]
+        _COMPILED_GRAPHS[role] = _build_graph(tools)
+    return _COMPILED_GRAPHS[role]
+
+
+def run_agent(user_query: str, staff_id: int, role: str, hospital_scope: int = None,
+              chat_history: list = None, chat_session_id: int = None) -> dict:
+    if role not in ROLE_CONFIG:
+        return {
+            "response": (
+                f"The '{role}' role doesn't have a chat assistant configured "
+                "(this is expected for service/testing accounts like ADMIN, "
+                "which use the REST API directly rather than the chat UI)."
+            ),
+            "tool_results": [],
+        }
+
+    set_identity(staff_id, role, hospital_scope, chat_session_id)
+    tools, system_prompt = ROLE_CONFIG[role]
+    graph = _get_graph_for_role(role)
+
+    # chat_history is a list of {"sender": "USER"|"ASSISTANT", "content": str}
+    # for prior turns in this session, oldest first. We reconstruct it as plain
+    # Human/AI text turns -- NOT the raw intermediate tool_use/tool_result
+    # messages from those turns (only the final response text of each turn is
+    # stored in chat_messages). This is enough for the LLM to resolve a
+    # follow-up like "yes please" against what it just asked, which is the
+    # gap that caused HITL confirmations to silently lose context before this
+    # fix. It does NOT give the LLM visibility into exactly which tools ran
+    # in prior turns -- if that turns out to matter, upgrade to a LangGraph
+    # checkpointer (e.g. MemorySaver keyed by session_id) instead.
+    history_messages = []
+    for turn in (chat_history or []):
+        if turn["sender"] == "USER":
+            history_messages.append(HumanMessage(content=turn["content"]))
+        elif turn["sender"] == "ASSISTANT":
+            history_messages.append(AIMessage(content=turn["content"]))
+
+    initial_state = {
+        "messages": [SystemMessage(content=system_prompt)] + history_messages + [HumanMessage(content=user_query)]
+    }
+    final_state = graph.invoke(initial_state, config={"recursion_limit": 12})
+
+    final_ai_message = next(
+        (m for m in reversed(final_state["messages"]) if isinstance(m, AIMessage)), None
+    )
+    tool_calls_used = [
+        {"tool_name": m.name} for m in final_state["messages"] if isinstance(m, ToolMessage)
+    ]
+
+    return {
+        "response": final_ai_message.content if final_ai_message else "No response generated.",
+        "tool_results": tool_calls_used,
+    }
+
+============================================================
+FILE: agent/subgraphs/nurse.py
+============================================================
+
+from langchain_core.tools import tool
+
+from agent.api_client import api_get, api_post
+from agent.context import current_staff_id, current_role
+
+
+@tool
+def get_unit_patients(unit_id: int) -> dict:
+    """Get the list of patients currently admitted to a given nursing unit,
+    including their encounter status and bed number."""
+    status, data = api_get(f"/api/units/{unit_id}/encounters", current_staff_id.get(), current_role.get())
+    return {"status": status, "data": data}
+
+
+@tool
+def get_medication_schedule(encounter_id: int) -> dict:
+    """Get the active medication requests for a specific encounter, i.e. what's
+    due to be administered."""
+    status, data = api_get(
+        f"/api/encounters/{encounter_id}/medication-requests",
+        current_staff_id.get(), current_role.get(),
+        params={"status": "ACTIVE"},
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def record_medication_administration(medication_request_id: int, dose_given: str, notes: str = "") -> dict:
+    """Record that a medication was administered to a patient for a given
+    medication_request_id. Use this only after confirming the order and dose."""
+    status, data = api_post(
+        "/api/medication-administrations", current_staff_id.get(), current_role.get(),
+        json_body={"medication_request_id": medication_request_id, "dose_given": dose_given, "notes": notes},
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def get_bed_status(hospital_id: int, status: str = "") -> dict:
+    """Get bed availability for a hospital. Optionally filter by status
+    (AVAILABLE, OCCUPIED, CLEANING, OUT_OF_SERVICE)."""
+    params = {"status": status} if status else None
+    resp_status, data = api_get(
+        f"/api/hospitals/{hospital_id}/beds", current_staff_id.get(), current_role.get(), params=params
+    )
+    return {"status": resp_status, "data": data}
+
+
+NURSE_TOOLS = [get_unit_patients, get_medication_schedule, record_medication_administration, get_bed_status]
+
+NURSE_SYSTEM_PROMPT = """You are MedFlow's nursing assistant. You help nurses check
+on their unit's patients, see what medications are due, record medication
+administrations, and check bed status. You only have access to nursing-scoped
+tools -- you cannot see billing, legal, or other hospitals' data. Be concise
+and clinical in tone. Always confirm the encounter/medication_request_id you
+acted on in your final answer so the nurse can double check it."""
+
+
+============================================================
+FILE: agent/subgraphs/physician.py
+============================================================
+
+from langchain_core.tools import tool
+
+from agent.api_client import api_get, api_post
+from agent.context import current_staff_id, current_role
+
+
+@tool
+def get_patient_chart(encounter_id: int) -> dict:
+    """Get a combined view of an encounter: encounter details, patient
+    demographics, diagnoses, active medications, and lab orders/results.
+    Use this before recording a new diagnosis or prescribing a medication."""
+    status, data = api_get(f"/api/encounters/{encounter_id}/chart", current_staff_id.get(), current_role.get())
+    return {"status": status, "data": data}
+
+
+@tool
+def create_diagnosis(encounter_id: int, icd10_code: str, description: str = "") -> dict:
+    """Record a new diagnosis for an encounter. icd10_code should be a valid
+    ICD-10-CM code (e.g. 'J18.9' for pneumonia, unspecified organism)."""
+    status, data = api_post(
+        f"/api/encounters/{encounter_id}/diagnoses", current_staff_id.get(), current_role.get(),
+        json_body={"icd10_code": icd10_code, "description": description},
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def create_lab_order(encounter_id: int, test_code: str, test_name: str) -> dict:
+    """Order a new lab test for an encounter."""
+    status, data = api_post(
+        f"/api/encounters/{encounter_id}/lab-orders", current_staff_id.get(), current_role.get(),
+        json_body={"test_code": test_code, "test_name": test_name},
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def get_lab_results(encounter_id: int, status: str = "") -> dict:
+    """Get lab orders/results for an encounter. Optionally filter by status
+    (ORDERED, COLLECTED, IN_LAB, RESULTED, CANCELLED)."""
+    params = {"status": status} if status else None
+    resp_status, data = api_get(
+        f"/api/encounters/{encounter_id}/lab-orders", current_staff_id.get(), current_role.get(), params=params
+    )
+    return {"status": resp_status, "data": data}
+
+
+@tool
+def create_medication_request(encounter_id: int, patient_id: int, drug_name: str,
+                               dose: str = "", route: str = "", frequency: str = "",
+                               controlled_substance_flag: bool = False) -> dict:
+    """Prescribe a new medication for a patient's encounter."""
+    status, data = api_post(
+        "/api/medication-requests", current_staff_id.get(), current_role.get(),
+        json_body={
+            "encounter_id": encounter_id,
+            "patient_id": patient_id,
+            "drug_name": drug_name,
+            "dose": dose,
+            "route": route,
+            "frequency": frequency,
+            "controlled_substance_flag": controlled_substance_flag,
+        },
+    )
+    return {"status": status, "data": data}
+
+
+PHYSICIAN_TOOLS = [
+    get_patient_chart,
+    create_diagnosis,
+    create_lab_order,
+    get_lab_results,
+    create_medication_request,
+]
+
+PHYSICIAN_SYSTEM_PROMPT = """You are MedFlow's physician assistant. You help
+physicians review a patient's full chart (diagnoses, active medications, lab
+orders/results), record new diagnoses, order labs, and prescribe medications.
+
+Always call get_patient_chart before recording a new diagnosis or
+prescribing a medication, so you're acting on current information rather
+than assuming.
+
+If asked to draft a discharge summary: first call get_patient_chart to
+gather the encounter's diagnoses, medications, and lab results, then write
+the summary yourself directly in your response -- this is a generation
+task, not a tool call, since there is no discharge-summary API endpoint.
+Structure it with clear sections: Diagnosis, Hospital Course, Medications at
+Discharge, and Follow-up. Do not fabricate any clinical detail that isn't
+present in the chart data you actually retrieved -- if information is
+missing (e.g. no discharge_datetime set yet), say so rather than inventing
+it."""
+
+============================================================
+FILE: agent/subgraphs/pharmacy.py
+============================================================
+
+from langchain_core.tools import tool
+
+from agent.api_client import api_get, api_post
+from agent.context import current_staff_id, current_role
+
+
+@tool
+def get_active_medication_requests(encounter_id: int) -> dict:
+    """Get active medication requests for an encounter, for pharmacy review."""
+    status, data = api_get(
+        f"/api/encounters/{encounter_id}/medication-requests",
+        current_staff_id.get(), current_role.get(),
+        params={"status": "ACTIVE"},
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def check_drug_interactions(drug_a: str, drug_b: str) -> dict:
+    """Check whether two drug names have a known interaction before a med is
+    dispensed."""
+    status, data = api_get(
+        "/api/medication-requests/interactions", current_staff_id.get(), current_role.get(),
+        params={"drug_a": drug_a, "drug_b": drug_b},
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def get_inventory(hospital_id: int, low_stock_only: bool = False) -> dict:
+    """Get pharmacy/medical inventory for a hospital. Set low_stock_only=True
+    to see only items at or below their reorder threshold."""
+    status, data = api_get(
+        f"/api/hospitals/{hospital_id}/inventory", current_staff_id.get(), current_role.get(),
+        params={"low_stock": str(low_stock_only).lower()},
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def dispense_medication(inventory_item_id: int, quantity: int, related_medication_request_id: int = None) -> dict:
+    """Record a DISPENSE inventory transaction -- reduces quantity_on_hand for
+    the given inventory item."""
+    status, data = api_post(
+        "/api/inventory-transactions", current_staff_id.get(), current_role.get(),
+        json_body={
+            "inventory_item_id": inventory_item_id,
+            "transaction_type": "DISPENSE",
+            "quantity": quantity,
+            "related_medication_request_id": related_medication_request_id,
+        },
+    )
+    return {"status": status, "data": data}
+
+
+PHARMACY_TOOLS = [get_active_medication_requests, check_drug_interactions, get_inventory, dispense_medication]
+
+PHARMACY_SYSTEM_PROMPT = """You are MedFlow's pharmacy assistant. You help
+pharmacists review active medication orders, check drug interactions before
+dispensing, monitor inventory (especially controlled substances and low-stock
+items), and record dispenses. Always run check_drug_interactions before
+recommending a dispense if two or more drugs are involved. Flag controlled
+substances explicitly in your answer."""
+
+
+============================================================
+FILE: agent/subgraphs/admissions.py
+============================================================
+
+from langchain_core.tools import tool
+
+from agent.api_client import api_get, api_post
+from agent.context import current_staff_id, current_role
+
+
+@tool
+def search_patient_by_mrn(mrn: str) -> dict:
+    """Look up an existing patient by their MRN (medical record number)."""
+    status, data = api_get(f"/api/patients/{mrn}", current_staff_id.get(), current_role.get())
+    return {"status": status, "data": data}
+
+
+@tool
+def create_patient(mrn: str, first_name: str, last_name: str, dob: str,
+                    primary_hospital_id: int, sex: str = "U",
+                    address: str = "", phone: str = "") -> dict:
+    """Register a new patient. dob must be YYYY-MM-DD. sex is one of M, F, O, U."""
+    status, data = api_post(
+        "/api/patients", current_staff_id.get(), current_role.get(),
+        json_body={
+            "mrn": mrn, "first_name": first_name, "last_name": last_name, "dob": dob,
+            "primary_hospital_id": primary_hospital_id, "sex": sex, "address": address, "phone": phone,
+        },
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def create_encounter(patient_id: int, hospital_id: int, encounter_type: str,
+                      chief_complaint: str = "") -> dict:
+    """Create a new encounter for a patient. encounter_type is one of
+    INPATIENT, OUTPATIENT, ER."""
+    status, data = api_post(
+        "/api/encounters", current_staff_id.get(), current_role.get(),
+        json_body={
+            "patient_id": patient_id, "hospital_id": hospital_id,
+            "encounter_type": encounter_type, "chief_complaint": chief_complaint,
+        },
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def get_available_beds(hospital_id: int) -> dict:
+    """Get all currently AVAILABLE beds for a hospital."""
+    status, data = api_get(
+        f"/api/hospitals/{hospital_id}/beds", current_staff_id.get(), current_role.get(),
+        params={"status": "AVAILABLE"},
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def assign_bed(bed_id: int, encounter_id: int) -> dict:
+    """Assign an available bed to an encounter -- marks the bed OCCUPIED and
+    the encounter IN_PROGRESS."""
+    status, data = api_post(
+        "/api/bed-assignments", current_staff_id.get(), current_role.get(),
+        json_body={"bed_id": bed_id, "encounter_id": encounter_id},
+    )
+    return {"status": status, "data": data}
+
+
+ADMISSIONS_TOOLS = [search_patient_by_mrn, create_patient, create_encounter, get_available_beds, assign_bed]
+
+ADMISSIONS_SYSTEM_PROMPT = """You are MedFlow's admissions assistant. You help
+admissions staff search for existing patients, register new patients, open new
+encounters, and assign beds. Always search_patient_by_mrn first before
+creating a new patient, to avoid duplicate records. Confirm the MRN,
+encounter_id, and bed assignment clearly in your final answer."""
+
+
+============================================================
+FILE: agent/subgraphs/management.py
+============================================================
+
+from langchain_core.tools import tool
+
+from agent.api_client import api_get
+from agent.context import current_staff_id, current_role
+
+
+@tool
+def get_occupancy_summary(hospital_id: int) -> dict:
+    """Get aggregated bed occupancy for a hospital: total beds, counts by
+    status, and an occupancy percentage. No patient or bed-assignment detail
+    is included -- this is a headcount view only."""
+    status, data = api_get(
+        f"/api/hospitals/{hospital_id}/occupancy-summary", current_staff_id.get(), current_role.get()
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def get_encounter_volume(hospital_id: int) -> dict:
+    """Get aggregated encounter volume for a hospital: total encounters,
+    broken down by encounter type (INPATIENT/OUTPATIENT/ER) and status.
+    No patient identifiers or clinical detail included."""
+    status, data = api_get(
+        f"/api/hospitals/{hospital_id}/encounter-volume", current_staff_id.get(), current_role.get()
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def get_inventory_summary(hospital_id: int, low_stock_only: bool = False) -> dict:
+    """Get inventory levels for a hospital. Set low_stock_only=True to see
+    only items at or below their reorder threshold."""
+    status, data = api_get(
+        f"/api/hospitals/{hospital_id}/inventory", current_staff_id.get(), current_role.get(),
+        params={"low_stock": str(low_stock_only).lower()},
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def get_revenue_summary(hospital_id: int) -> dict:
+    """Get an aggregated revenue summary for a hospital: total submitted,
+    paid, and denied claim amounts, plus claim counts by status."""
+    status, data = api_get(
+        f"/api/hospitals/{hospital_id}/revenue-summary", current_staff_id.get(), current_role.get()
+    )
+    return {"status": status, "data": data}
+
+
+MANAGEMENT_TOOLS = [
+    get_occupancy_summary,
+    get_encounter_volume,
+    get_inventory_summary,
+    get_revenue_summary,
+]
+
+MANAGEMENT_SYSTEM_PROMPT = """You are MedFlow's management assistant. You
+help hospital group leadership see rolled-up operational metrics: bed
+occupancy, encounter volume, inventory levels, and revenue -- across one
+hospital at a time (call the relevant tool once per hospital_id if asked to
+compare hospitals). Every number you have access to is pre-aggregated at
+the API layer with no patient names, MRNs, or clinical detail attached --
+you cannot look up an individual patient's chart, and should say so plainly
+if asked, rather than trying to reconstruct patient-level detail from
+aggregate counts."""
+
+============================================================
+FILE: agent/subgraphs/legal.py
+============================================================
+
+from langchain_core.tools import tool
+
+from agent.api_client import api_get
+from agent.context import current_staff_id, current_role
+
+
+@tool
+def get_audit_trail_for_patient(patient_id: int, since_days: int = 30) -> dict:
+    """Get the audit trail of who accessed a specific patient's records
+    (by patient_id, matching audit_log.resource_id for resource_type='patient')
+    within the last N days (default 30)."""
+    status, data = api_get(
+        "/api/audit-log", current_staff_id.get(), current_role.get(),
+        params={"resource_type": "patient", "resource_id": patient_id, "since_days": since_days},
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def get_audit_trail_for_staff(staff_id: int, since_days: int = 30) -> dict:
+    """Get the audit trail of everything a specific staff member (by
+    staff_id) has done within the last N days (default 30)."""
+    status, data = api_get(
+        "/api/audit-log", current_staff_id.get(), current_role.get(),
+        params={"staff_id": staff_id, "since_days": since_days},
+    )
+    return {"status": status, "data": data}
+
+
+@tool
+def browse_audit_trail(resource_type: str = "", since_days: int = 30) -> dict:
+    """Browse the audit trail generally, optionally filtered by
+    resource_type (e.g. 'patient', 'encounter', 'medication_request',
+    'inventory_transaction', 'billing_claim', 'audit_log') within the last N
+    days (default 30). Use this for open-ended questions that aren't about
+    one specific patient or staff member."""
+    params = {"since_days": since_days}
+    if resource_type:
+        params["resource_type"] = resource_type
+    status, data = api_get("/api/audit-log", current_staff_id.get(), current_role.get(), params=params)
+    return {"status": status, "data": data}
+
+
+LEGAL_TOOLS = [get_audit_trail_for_patient, get_audit_trail_for_staff, browse_audit_trail]
+
+LEGAL_SYSTEM_PROMPT = """You are MedFlow's legal/compliance assistant. You
+help legal and compliance staff answer questions like "who accessed patient
+X's chart in the last 30 days" or "what has staff member Y done recently"
+by querying the audit trail. You are strictly read-only -- you have no
+tools that create, update, or delete anything, only tools that query the
+audit_log table.
+
+When reporting results, state exactly what the audit trail shows -- who
+(actor_role/actor_staff_id), what action, what resource, and when -- without
+speculating about intent or drawing conclusions about whether an access was
+appropriate. That judgment belongs to the human reviewing the report. If the
+audit trail shows no matching entries, say so plainly rather than assuming
+that means nothing happened (the app has only been logging since this
+system went live -- it has no visibility into anything before that)."""
+
+============================================================
+FILE: agent/subgraphs/finance.py
+============================================================
+
+from langchain_core.tools import tool
+
+from agent.api_client import api_get
+from agent.context import current_staff_id, current_role
+
+
+@tool
+def get_claims_by_status(hospital_id: int, status: str = "") -> dict:
+    """Get billing claims for a hospital. Optionally filter by status
+    (SUBMITTED, PAID, DENIED, APPEALED). Returns claim amount, payer, and
+    status -- no clinical/diagnosis detail is included."""
+    params = {"status": status} if status else None
+    resp_status, data = api_get(
+        f"/api/hospitals/{hospital_id}/claims", current_staff_id.get(), current_role.get(), params=params
+    )
+    return {"status": resp_status, "data": data}
+
+
+@tool
+def get_revenue_summary(hospital_id: int) -> dict:
+    """Get an aggregated revenue summary for a hospital: total submitted,
+    paid, and denied amounts, plus a claim count broken down by status."""
+    resp_status, data = api_get(
+        f"/api/hospitals/{hospital_id}/revenue-summary", current_staff_id.get(), current_role.get()
+    )
+    return {"status": resp_status, "data": data}
+
+
+FINANCE_TOOLS = [get_claims_by_status, get_revenue_summary]
+
+FINANCE_SYSTEM_PROMPT = """You are MedFlow's finance assistant. You help
+billing/revenue-cycle staff review claims and revenue summaries for a
+hospital. You only have access to billing data -- claim amounts, payer
+names, and claim status -- and no clinical detail (diagnoses, medications,
+lab results) is available to you or ever included in the data you can
+retrieve. If asked about clinical information, explain plainly that
+Finance's tools don't have access to that and it would need to come from
+clinical staff, rather than guessing or inferring it from claim data."""
+
+============================================================
+FILE: api/__init__.py
+============================================================
+
+from .patients import patients_bp
+from .encounters import encounters_bp
+from .beds import beds_bp
+from .medications import medications_bp
+from .inventory import inventory_bp
+from .audit import audit_bp
+from .chat import chat_bp
+from .diagnoses import diagnoses_bp
+from .labs import labs_bp
+from .billing import billing_bp
+from .management import management_bp
+from .admin_usage import admin_usage_bp
+
+def register_api_blueprints(app):
+    app.register_blueprint(patients_bp, url_prefix="/api")
+    app.register_blueprint(encounters_bp, url_prefix="/api")
+    app.register_blueprint(beds_bp, url_prefix="/api")
+    app.register_blueprint(medications_bp, url_prefix="/api")
+    app.register_blueprint(inventory_bp, url_prefix="/api")
+    app.register_blueprint(audit_bp, url_prefix="/api")
+    app.register_blueprint(chat_bp, url_prefix="/api")
+    app.register_blueprint(diagnoses_bp, url_prefix="/api")
+    app.register_blueprint(labs_bp, url_prefix="/api")
+    app.register_blueprint(billing_bp, url_prefix="/api")
+    app.register_blueprint(management_bp, url_prefix="/api")
+    app.register_blueprint(admin_usage_bp, url_prefix="/api")
+
+============================================================
+FILE: api/_audit_helper.py
+============================================================
+
+from flask import request
+
+from extensions import db
+from models.audit import AuditLog
+
+
+def write_audit(actor_staff_id, actor_role, action, resource_type, resource_id=None,
+                 intent_text=None, phi_accessed=False):
+    entry = AuditLog(
+        actor_staff_id=actor_staff_id,
+        actor_role=actor_role,
+        action=action,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        intent_text=intent_text,
+        phi_accessed=phi_accessed,
+        ip_address=request.remote_addr if request else None,
+    )
+    db.session.add(entry)
+    db.session.commit()
+    return entry
+
+
+============================================================
+FILE: api/admin_usage.py
+============================================================
+
+"""
+Usage & Cost dashboard API. Restricted to ADMIN accounts (see the
+require_role decorator on every route below) -- this surfaces cost/latency
+data across ALL roles, which is a different sensitivity level than any
+single role's own tools, so it gets its own tighter gate rather than being
+folded into an existing role's toolset.
+"""
+import csv
+import io
+from datetime import datetime, timedelta
+
+from flask import Blueprint, jsonify, request, Response
+
+from auth.decorators import require_role
+from models.system_log import HttpCallLog, LlmCallLog
+
+admin_usage_bp = Blueprint("admin_usage", __name__)
+
+
+def _parse_date_range():
+    """?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD, defaulting to the last 7
+    days (inclusive of today) if not provided. end is exclusive internally
+    (end_date + 1 day) so a same-day range still captures that whole day."""
+    end_str = request.args.get("end_date")
+    start_str = request.args.get("start_date")
+    end = (datetime.strptime(end_str, "%Y-%m-%d") + timedelta(days=1)) if end_str else (
+        datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    )
+    start = datetime.strptime(start_str, "%Y-%m-%d") if start_str else (end - timedelta(days=8))
+    return start, end
+
+
+@admin_usage_bp.route("/admin/usage/cost-summary", methods=["GET"])
+@require_role("ADMIN")
+def cost_summary():
+    start, end = _parse_date_range()
+    rows = LlmCallLog.query.filter(LlmCallLog.created_at >= start, LlmCallLog.created_at < end).all()
+
+    by_role = {}
+    by_day = {}
+    for r in rows:
+        role_key = r.actor_role or "UNKNOWN"
+        day_key = r.created_at.strftime("%Y-%m-%d") if r.created_at else "UNKNOWN"
+        cost = float(r.cost_usd) if r.cost_usd is not None else 0.0
+
+        rb = by_role.setdefault(role_key, {"total_cost_usd": 0.0, "call_count": 0, "input_tokens": 0, "output_tokens": 0})
+        rb["total_cost_usd"] += cost
+        rb["call_count"] += 1
+        rb["input_tokens"] += r.input_tokens or 0
+        rb["output_tokens"] += r.output_tokens or 0
+
+        db_bucket = by_day.setdefault(day_key, {"total_cost_usd": 0.0, "call_count": 0})
+        db_bucket["total_cost_usd"] += cost
+        db_bucket["call_count"] += 1
+
+    by_role_list = [{"actor_role": k, **v, "total_cost_usd": round(v["total_cost_usd"], 6)} for k, v in sorted(by_role.items())]
+    by_day_list = [{"date": k, **v, "total_cost_usd": round(v["total_cost_usd"], 6)} for k, v in sorted(by_day.items())]
+
+    return jsonify({
+        "start_date": start.strftime("%Y-%m-%d"),
+        "end_date": (end - timedelta(days=1)).strftime("%Y-%m-%d"),
+        "total_cost_usd": round(sum(x["total_cost_usd"] for x in by_role_list), 6),
+        "total_calls": sum(x["call_count"] for x in by_role_list),
+        "by_role": by_role_list,
+        "by_day": by_day_list,
+    })
+
+
+@admin_usage_bp.route("/admin/usage/llm-calls", methods=["GET"])
+@require_role("ADMIN")
+def list_llm_calls():
+    start, end = _parse_date_range()
+    role_filter = request.args.get("role")
+    limit = min(int(request.args.get("limit", 100)), 1000)
+
+    query = LlmCallLog.query.filter(LlmCallLog.created_at >= start, LlmCallLog.created_at < end)
+    if role_filter:
+        query = query.filter_by(actor_role=role_filter)
+    rows = query.order_by(LlmCallLog.created_at.desc()).limit(limit).all()
+    return jsonify([r.to_dict() for r in rows])
+
+
+@admin_usage_bp.route("/admin/usage/http-calls", methods=["GET"])
+@require_role("ADMIN")
+def list_http_calls():
+    start, end = _parse_date_range()
+    role_filter = request.args.get("role")
+    method_filter = request.args.get("method")
+    limit = min(int(request.args.get("limit", 100)), 1000)
+
+    query = HttpCallLog.query.filter(HttpCallLog.created_at >= start, HttpCallLog.created_at < end)
+    if role_filter:
+        query = query.filter_by(actor_role=role_filter)
+    if method_filter:
+        query = query.filter_by(method=method_filter)
+    rows = query.order_by(HttpCallLog.created_at.desc()).limit(limit).all()
+    return jsonify([r.to_dict() for r in rows])
+
+
+def _csv_response(fieldnames, rows_as_dicts, filename):
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows_as_dicts:
+        writer.writerow(row)
+    return Response(
+        buffer.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@admin_usage_bp.route("/admin/usage/llm-calls.csv", methods=["GET"])
+@require_role("ADMIN")
+def export_llm_calls_csv():
+    start, end = _parse_date_range()
+    role_filter = request.args.get("role")
+
+    query = LlmCallLog.query.filter(LlmCallLog.created_at >= start, LlmCallLog.created_at < end)
+    if role_filter:
+        query = query.filter_by(actor_role=role_filter)
+    rows = query.order_by(LlmCallLog.created_at.desc()).limit(5000).all()
+
+    # Deliberately excludes request_json/response_json -- those are large
+    # text blobs, not a fit for a summary CSV export. Use the JSON endpoint
+    # (or query MySQL directly) if you need the full payloads.
+    fieldnames = ["log_id", "created_at", "staff_id", "actor_role", "chat_session_id",
+                  "model", "input_tokens", "output_tokens", "cost_usd", "latency_ms"]
+    return _csv_response(fieldnames, [r.to_dict() for r in rows], "llm_call_log.csv")
+
+
+@admin_usage_bp.route("/admin/usage/http-calls.csv", methods=["GET"])
+@require_role("ADMIN")
+def export_http_calls_csv():
+    start, end = _parse_date_range()
+    role_filter = request.args.get("role")
+    method_filter = request.args.get("method")
+
+    query = HttpCallLog.query.filter(HttpCallLog.created_at >= start, HttpCallLog.created_at < end)
+    if role_filter:
+        query = query.filter_by(actor_role=role_filter)
+    if method_filter:
+        query = query.filter_by(method=method_filter)
+    rows = query.order_by(HttpCallLog.created_at.desc()).limit(5000).all()
+
+    fieldnames = ["log_id", "created_at", "staff_id", "actor_role", "method", "path",
+                  "response_status", "duration_ms", "ip_address"]
+    return _csv_response(fieldnames, [r.to_dict() for r in rows], "http_call_log.csv")
+
+============================================================
+FILE: api/audit.py
+============================================================
+
+from datetime import datetime, timedelta
+
+from flask import Blueprint, jsonify, request
+
+from auth.decorators import require_role, current_staff_id, current_role
+from models.audit import AuditLog
+from ._audit_helper import write_audit
+
+audit_bp = Blueprint("audit", __name__)
+
+
+@audit_bp.route("/audit-log", methods=["POST"])
+def post_audit_log():
+    """
+    Called by the LangGraph audit_writer node after every PHI-touching tool
+    result. Intentionally open to any authenticated session (not role-gated)
+    because every role's subgraph needs to be able to log its own actions —
+    but the actor_staff_id must match the caller's own session, enforced below.
+    """
+    payload = request.get_json(force=True)
+    if payload.get("actor_staff_id") != current_staff_id():
+        return jsonify({"error": "actor_staff_id must match authenticated session"}), 403
+
+    entry = write_audit(
+        actor_staff_id=payload["actor_staff_id"],
+        actor_role=payload.get("actor_role", current_role()),
+        action=payload["action"],
+        resource_type=payload["resource_type"],
+        resource_id=payload.get("resource_id"),
+        intent_text=payload.get("intent_text"),
+        phi_accessed=payload.get("phi_accessed", False),
+    )
+    return jsonify(entry.to_dict()), 201
+
+
+@audit_bp.route("/audit-log", methods=["GET"])
+@require_role("LEGAL", "ADMIN")
+def get_audit_log():
+    query = AuditLog.query
+
+    resource_type = request.args.get("resource_type")
+    resource_id = request.args.get("resource_id")
+    staff_id = request.args.get("staff_id")
+    since_days = request.args.get("since_days")
+
+    if resource_type:
+        query = query.filter_by(resource_type=resource_type)
+    if resource_id:
+        query = query.filter_by(resource_id=resource_id)
+    if staff_id:
+        query = query.filter_by(actor_staff_id=staff_id)
+    if since_days:
+        cutoff = datetime.utcnow() - timedelta(days=int(since_days))
+        query = query.filter(AuditLog.occurred_at >= cutoff)
+
+    limit = min(int(request.args.get("limit", 200)), 500)
+    rows = query.order_by(AuditLog.occurred_at.desc()).limit(limit).all()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="audit_log",
+        resource_id=resource_id,
+        intent_text=request.args.get("intent", "audit trail query"),
+        phi_accessed=bool(resource_type == "patient" or resource_id),
+    )
+    return jsonify([r.to_dict() for r in rows])
+
+============================================================
+FILE: api/beds.py
+============================================================
+
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
+from auth.decorators import require_role, current_staff_id, current_role
+from extensions import db
+from models.hospital import Bed, Unit, Department
+from models.bed_assignment import BedAssignment
+from models.encounter import Encounter
+from ._audit_helper import write_audit
+
+beds_bp = Blueprint("beds", __name__)
+
+
+@beds_bp.route("/hospitals/<int:hospital_id>/beds", methods=["GET"])
+@require_role("ADMISSIONS", "NURSE", "MANAGEMENT")
+def get_beds(hospital_id):
+    """No PHI in this payload — bed status only, no patient/MRN attached."""
+    status_filter = request.args.get("status")
+    query = (
+        db.session.query(Bed, Unit)
+        .join(Unit, Bed.unit_id == Unit.unit_id)
+        .join(Department, Unit.department_id == Department.department_id)
+        .filter(Department.hospital_id == hospital_id)
+    )
+    if status_filter:
+        query = query.filter(Bed.status == status_filter)
+
+    results = []
+    for bed, unit in query.all():
+        item = bed.to_dict()
+        item["unit_name"] = unit.name
+        results.append(item)
+    return jsonify(results)
+
+
+@beds_bp.route("/bed-assignments", methods=["POST"])
+@require_role("ADMISSIONS")
+def create_bed_assignment():
+    payload = request.get_json(force=True)
+    required = ["bed_id", "encounter_id"]
+    missing = [f for f in required if f not in payload]
+    if missing:
+        return jsonify({"error": "missing fields", "fields": missing}), 400
+
+    bed = Bed.query.get(payload["bed_id"])
+    if not bed:
+        return jsonify({"error": "bed not found"}), 404
+    if bed.status != "AVAILABLE":
+        return jsonify({"error": f"bed is {bed.status}, not AVAILABLE"}), 409
+
+    assignment = BedAssignment(
+        bed_id=payload["bed_id"],
+        encounter_id=payload["encounter_id"],
+        assigned_at=datetime.utcnow(),
+    )
+    bed.status = "OCCUPIED"
+
+    encounter = Encounter.query.get(payload["encounter_id"])
+    if encounter:
+        encounter.bed_id = bed.bed_id
+        encounter.status = "IN_PROGRESS"
+
+    db.session.add(assignment)
+    db.session.commit()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="CREATE",
+        resource_type="bed_assignment",
+        resource_id=assignment.assignment_id,
+        intent_text=payload.get("intent", "assign bed to encounter"),
+        phi_accessed=True,  # links a bed to a specific patient encounter
+    )
+    return jsonify(assignment.to_dict()), 201
+
+
+============================================================
+FILE: api/billing.py
+============================================================
+
+from flask import Blueprint, jsonify, request
+
+from auth.decorators import require_role, current_staff_id, current_role
+from models.billing import BillingClaim
+from ._audit_helper import write_audit
+
+billing_bp = Blueprint("billing", __name__)
+
+
+@billing_bp.route("/hospitals/<int:hospital_id>/claims", methods=["GET"])
+@require_role("FINANCE", "MANAGEMENT")
+def get_claims(hospital_id):
+    """No PHI -- billing_claims only links to encounter_id, never joined to
+    diagnoses/clinical detail at this endpoint. That's what lets Finance see
+    claim amounts and denial reasons while structurally having no path to
+    clinical information, not just a policy saying it shouldn't look."""
+    status_filter = request.args.get("status")
+    query = BillingClaim.query.filter_by(hospital_id=hospital_id)
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+    rows = query.order_by(BillingClaim.submitted_at.desc()).all()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="billing_claim",
+        resource_id=None,
+        intent_text=f"claims for hospital {hospital_id}" + (f" status={status_filter}" if status_filter else ""),
+        phi_accessed=False,
+    )
+    return jsonify([r.to_dict() for r in rows])
+
+
+@billing_bp.route("/hospitals/<int:hospital_id>/revenue-summary", methods=["GET"])
+@require_role("FINANCE", "MANAGEMENT")
+def get_revenue_summary(hospital_id):
+    rows = BillingClaim.query.filter_by(hospital_id=hospital_id).all()
+
+    summary = {
+        "hospital_id": hospital_id,
+        "total_claims": len(rows),
+        "total_submitted_amount": 0.0,
+        "total_paid_amount": 0.0,
+        "total_denied_amount": 0.0,
+        "count_by_status": {},
+    }
+    for claim in rows:
+        amount = float(claim.claim_amount) if claim.claim_amount is not None else 0.0
+        summary["total_submitted_amount"] += amount
+        if claim.status == "PAID":
+            summary["total_paid_amount"] += amount
+        elif claim.status == "DENIED":
+            summary["total_denied_amount"] += amount
+        summary["count_by_status"][claim.status] = summary["count_by_status"].get(claim.status, 0) + 1
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="revenue_summary",
+        resource_id=None,
+        intent_text=f"revenue summary for hospital {hospital_id}",
+        phi_accessed=False,
+    )
+    return jsonify(summary)
+
+============================================================
+FILE: api/chat.py
+============================================================
+
+from flask import Blueprint, jsonify, request
+
+from auth.decorators import current_staff_id, current_role, current_hospital_id
+from extensions import db
+from models.chat import ChatSession, ChatMessage
+from agent.graph import run_agent
+
+chat_bp = Blueprint("chat", __name__)
+
+
+@chat_bp.route("/chat/sessions", methods=["POST"])
+def create_chat_session():
+    staff_id = current_staff_id()
+    role = current_role()
+    if not staff_id:
+        return jsonify({"error": "unauthenticated"}), 401
+
+    session_row = ChatSession(staff_id=staff_id, role_context=role)
+    db.session.add(session_row)
+    db.session.commit()
+    return jsonify(session_row.to_dict()), 201
+
+
+@chat_bp.route("/chat/sessions/<int:session_id>/messages", methods=["POST"])
+def post_chat_message(session_id):
+    staff_id = current_staff_id()
+    role = current_role()
+    hospital_id = current_hospital_id()
+    if not staff_id:
+        return jsonify({"error": "unauthenticated"}), 401
+
+    payload = request.get_json(force=True)
+    user_text = payload.get("message", "").strip()
+    if not user_text:
+        return jsonify({"error": "message is required"}), 400
+
+    # Fetch prior turns BEFORE saving this new user message, so chat_history
+    # is exactly "everything before this turn" -- this is what was missing
+    # before: each call to run_agent started with zero memory of earlier
+    # turns, so a follow-up like "yes please" had nothing to resolve against.
+    prior_rows = (
+        ChatMessage.query
+        .filter(ChatMessage.session_id == session_id, ChatMessage.sender.in_(["USER", "ASSISTANT"]))
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+    chat_history = [{"sender": r.sender, "content": r.content} for r in prior_rows]
+
+    user_msg = ChatMessage(session_id=session_id, sender="USER", content=user_text)
+    db.session.add(user_msg)
+    db.session.commit()
+
+    # role is taken from the authenticated session — never from the request body
+    result_state = run_agent(
+        user_query=user_text,
+        staff_id=staff_id,
+        role=role,
+        hospital_scope=hospital_id,
+        chat_history=chat_history,
+        chat_session_id=session_id,
+    )
+
+    assistant_msg = ChatMessage(
+        session_id=session_id,
+        sender="ASSISTANT",
+        content=result_state["response"],
+    )
+    db.session.add(assistant_msg)
+    db.session.commit()
+
+    return jsonify({
+        "session_id": session_id,
+        "response": result_state["response"],
+        "tools_used": [t.get("tool_name") for t in result_state.get("tool_results", [])],
+    })
+
+
+@chat_bp.route("/chat/sessions/<int:session_id>/messages", methods=["GET"])
+def get_chat_messages(session_id):
+    rows = ChatMessage.query.filter_by(session_id=session_id).order_by(ChatMessage.created_at.asc()).all()
+    return jsonify([r.to_dict() for r in rows])
+
+============================================================
+FILE: api/diagnoses.py
+============================================================
+
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
+from auth.decorators import require_role, current_staff_id, current_role
+from extensions import db
+from models.encounter import Diagnosis
+from ._audit_helper import write_audit
+
+diagnoses_bp = Blueprint("diagnoses", __name__)
+
+
+@diagnoses_bp.route("/encounters/<int:encounter_id>/diagnoses", methods=["GET"])
+@require_role("PHYSICIAN", "NURSE")
+def get_diagnoses(encounter_id):
+    rows = Diagnosis.query.filter_by(encounter_id=encounter_id).order_by(Diagnosis.diagnosed_at.desc()).all()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="diagnosis",
+        resource_id=None,
+        intent_text=f"diagnoses for encounter {encounter_id}",
+        phi_accessed=True,
+    )
+    return jsonify([r.to_dict() for r in rows])
+
+
+@diagnoses_bp.route("/encounters/<int:encounter_id>/diagnoses", methods=["POST"])
+@require_role("PHYSICIAN")
+def create_diagnosis(encounter_id):
+    payload = request.get_json(force=True)
+    required = ["icd10_code"]
+    missing = [f for f in required if f not in payload]
+    if missing:
+        return jsonify({"error": "missing fields", "fields": missing}), 400
+
+    diagnosis = Diagnosis(
+        encounter_id=encounter_id,
+        icd10_code=payload["icd10_code"],
+        description=payload.get("description"),
+        diagnosed_by_staff_id=current_staff_id(),
+        diagnosed_at=datetime.utcnow(),
+    )
+    db.session.add(diagnosis)
+    db.session.commit()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="CREATE",
+        resource_type="diagnosis",
+        resource_id=diagnosis.diagnosis_id,
+        intent_text=payload.get("intent", "new diagnosis"),
+        phi_accessed=True,
+    )
+    return jsonify(diagnosis.to_dict()), 201
+
+============================================================
+FILE: api/encounters.py
+============================================================
+
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
+from auth.decorators import require_role, current_staff_id, current_role
+from extensions import db
+from models.encounter import Encounter
+from models.patient import Patient
+from models.bed_assignment import BedAssignment
+from models.hospital import Bed
+from ._audit_helper import write_audit
+
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
+from auth.decorators import require_role, current_staff_id, current_role
+from extensions import db
+from models.encounter import Encounter, Diagnosis
+from models.patient import Patient
+from models.bed_assignment import BedAssignment
+from models.hospital import Bed
+from models.medication import MedicationRequest
+from models.lab import LabOrder
+from ._audit_helper import write_audit
+
+encounters_bp = Blueprint("encounters", __name__)
+
+
+@encounters_bp.route("/encounters/<int:encounter_id>", methods=["GET"])
+@require_role("PHYSICIAN", "NURSE", "ADMISSIONS")
+def get_encounter(encounter_id):
+    encounter = Encounter.query.get(encounter_id)
+    if not encounter:
+        return jsonify({"error": "not found"}), 404
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="encounter",
+        resource_id=encounter.encounter_id,
+        intent_text=request.args.get("intent"),
+        phi_accessed=True,
+    )
+    return jsonify(encounter.to_dict())
+
+
+@encounters_bp.route("/encounters", methods=["POST"])
+@require_role("ADMISSIONS")
+def create_encounter():
+    payload = request.get_json(force=True)
+    required = ["patient_id", "hospital_id", "encounter_type"]
+    missing = [f for f in required if f not in payload]
+    if missing:
+        return jsonify({"error": "missing fields", "fields": missing}), 400
+
+    encounter = Encounter(
+        patient_id=payload["patient_id"],
+        hospital_id=payload["hospital_id"],
+        encounter_type=payload["encounter_type"],
+        status=payload.get("status", "ARRIVED"),
+        admit_datetime=datetime.utcnow(),
+        chief_complaint=payload.get("chief_complaint"),
+    )
+    db.session.add(encounter)
+    db.session.commit()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="CREATE",
+        resource_type="encounter",
+        resource_id=encounter.encounter_id,
+        intent_text=payload.get("intent", "register new encounter"),
+        phi_accessed=True,
+    )
+    return jsonify(encounter.to_dict()), 201
+
+
+@encounters_bp.route("/units/<int:unit_id>/encounters", methods=["GET"])
+@require_role("NURSE", "PHYSICIAN")
+def get_unit_encounters(unit_id):
+    """Nurse-facing: active encounters for patients currently in beds on this unit."""
+    rows = (
+        db.session.query(Encounter, Patient, Bed)
+        .join(Patient, Encounter.patient_id == Patient.patient_id)
+        .join(Bed, Encounter.bed_id == Bed.bed_id)
+        .filter(Bed.unit_id == unit_id, Encounter.status == "IN_PROGRESS")
+        .all()
+    )
+    results = []
+    for encounter, patient, bed in rows:
+        item = encounter.to_dict()
+        item["patient"] = patient.to_dict(full=False)
+        item["bed_number"] = bed.bed_number
+        results.append(item)
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="encounter",
+        resource_id=None,
+        intent_text=f"unit {unit_id} patient list",
+        phi_accessed=True,
+    )
+    return jsonify(results)
+
+@encounters_bp.route("/encounters/<int:encounter_id>/chart", methods=["GET"])
+@require_role("PHYSICIAN", "NURSE")
+def get_encounter_chart(encounter_id):
+    """Combined view for a physician reviewing a patient: encounter details,
+    demographics, diagnoses, active medications, and lab orders/results in
+    one call, rather than four separate tool round-trips."""
+    encounter = Encounter.query.get(encounter_id)
+    if not encounter:
+        return jsonify({"error": "not found"}), 404
+
+    patient = Patient.query.get(encounter.patient_id)
+    diagnoses = (
+        Diagnosis.query.filter_by(encounter_id=encounter_id)
+        .order_by(Diagnosis.diagnosed_at.desc()).all()
+    )
+    active_meds = MedicationRequest.query.filter_by(encounter_id=encounter_id, status="ACTIVE").all()
+    labs = LabOrder.query.filter_by(encounter_id=encounter_id).order_by(LabOrder.ordered_at.desc()).all()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="encounter_chart",
+        resource_id=encounter.encounter_id,
+        intent_text=request.args.get("intent", "full chart view"),
+        phi_accessed=True,
+    )
+    return jsonify({
+        "encounter": encounter.to_dict(),
+        "patient": patient.to_dict(full=False) if patient else None,
+        "diagnoses": [d.to_dict() for d in diagnoses],
+        "active_medications": [m.to_dict() for m in active_meds],
+        "lab_orders": [l.to_dict() for l in labs],
+    })
+
+============================================================
+FILE: api/inventory.py
+============================================================
+
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
+from auth.decorators import require_role, current_staff_id, current_role
+from extensions import db
+from models.inventory import InventoryItem, InventoryTransaction
+from ._audit_helper import write_audit
+
+inventory_bp = Blueprint("inventory", __name__)
+
+
+@inventory_bp.route("/hospitals/<int:hospital_id>/inventory", methods=["GET"])
+@require_role("PHARMACIST", "MANAGEMENT")
+def get_inventory(hospital_id):
+    """No PHI — item/stock levels only."""
+    low_stock_only = request.args.get("low_stock", "false").lower() == "true"
+    items = InventoryItem.query.filter_by(hospital_id=hospital_id).all()
+    results = [i.to_dict() for i in items]
+    if low_stock_only:
+        results = [r for r in results if r["low_stock"]]
+    return jsonify(results)
+
+
+@inventory_bp.route("/inventory-transactions", methods=["POST"])
+@require_role("PHARMACIST")
+def create_inventory_transaction():
+    payload = request.get_json(force=True)
+    required = ["inventory_item_id", "transaction_type", "quantity"]
+    missing = [f for f in required if f not in payload]
+    if missing:
+        return jsonify({"error": "missing fields", "fields": missing}), 400
+
+    item = InventoryItem.query.get(payload["inventory_item_id"])
+    if not item:
+        return jsonify({"error": "inventory item not found"}), 404
+
+    txn_type = payload["transaction_type"]
+    quantity = int(payload["quantity"])
+
+    if txn_type in ("RECEIPT",):
+        item.quantity_on_hand += quantity
+    elif txn_type in ("DISPENSE",):
+        if item.quantity_on_hand < quantity:
+            return jsonify({"error": "insufficient stock"}), 409
+        item.quantity_on_hand -= quantity
+    elif txn_type == "ADJUSTMENT":
+        item.quantity_on_hand += quantity  # quantity may be negative for downward adjustments
+    # TRANSFER handled in Phase 2 (cross-hospital logic)
+
+    transaction = InventoryTransaction(
+        inventory_item_id=payload["inventory_item_id"],
+        transaction_type=txn_type,
+        quantity=quantity,
+        related_medication_request_id=payload.get("related_medication_request_id"),
+        performed_by_staff_id=current_staff_id(),
+        transaction_at=datetime.utcnow(),
+    )
+    db.session.add(transaction)
+    db.session.commit()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="CREATE",
+        resource_type="inventory_transaction",
+        resource_id=transaction.transaction_id,
+        intent_text=payload.get("intent", f"{txn_type} of {quantity}"),
+        phi_accessed=False,
+    )
+    return jsonify(transaction.to_dict()), 201
+
+
+============================================================
+FILE: api/labs.py
+============================================================
+
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
+from auth.decorators import require_role, current_staff_id, current_role
+from extensions import db
+from models.lab import LabOrder
+from ._audit_helper import write_audit
+
+labs_bp = Blueprint("labs", __name__)
+
+
+@labs_bp.route("/encounters/<int:encounter_id>/lab-orders", methods=["GET"])
+@require_role("PHYSICIAN", "NURSE")
+def get_lab_orders(encounter_id):
+    status_filter = request.args.get("status")
+    query = LabOrder.query.filter_by(encounter_id=encounter_id)
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+    rows = query.order_by(LabOrder.ordered_at.desc()).all()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="lab_order",
+        resource_id=None,
+        intent_text=f"lab orders for encounter {encounter_id}",
+        phi_accessed=True,
+    )
+    return jsonify([r.to_dict() for r in rows])
+
+
+@labs_bp.route("/encounters/<int:encounter_id>/lab-orders", methods=["POST"])
+@require_role("PHYSICIAN")
+def create_lab_order(encounter_id):
+    payload = request.get_json(force=True)
+    required = ["test_code", "test_name"]
+    missing = [f for f in required if f not in payload]
+    if missing:
+        return jsonify({"error": "missing fields", "fields": missing}), 400
+
+    lab_order = LabOrder(
+        encounter_id=encounter_id,
+        ordered_by_staff_id=current_staff_id(),
+        test_code=payload["test_code"],
+        test_name=payload["test_name"],
+        status=payload.get("status", "ORDERED"),
+        ordered_at=datetime.utcnow(),
+    )
+    db.session.add(lab_order)
+    db.session.commit()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="CREATE",
+        resource_type="lab_order",
+        resource_id=lab_order.lab_order_id,
+        intent_text=payload.get("intent", "new lab order"),
+        phi_accessed=True,
+    )
+    return jsonify(lab_order.to_dict()), 201
+
+============================================================
+FILE: api/management.py
+============================================================
+
+from flask import Blueprint, jsonify
+
+from auth.decorators import require_role, current_staff_id, current_role
+from extensions import db
+from models.hospital import Bed, Unit, Department
+from models.encounter import Encounter
+from ._audit_helper import write_audit
+
+management_bp = Blueprint("management", __name__)
+
+
+@management_bp.route("/hospitals/<int:hospital_id>/occupancy-summary", methods=["GET"])
+@require_role("MANAGEMENT")
+def get_occupancy_summary(hospital_id):
+    """Aggregated bed counts by status -- no bed-to-patient linkage exposed
+    here, unlike GET /hospitals/<id>/beds which Nurse/Admissions use."""
+    beds = (
+        db.session.query(Bed)
+        .join(Unit, Bed.unit_id == Unit.unit_id)
+        .join(Department, Unit.department_id == Department.department_id)
+        .filter(Department.hospital_id == hospital_id)
+        .all()
+    )
+    total = len(beds)
+    count_by_status = {}
+    for b in beds:
+        count_by_status[b.status] = count_by_status.get(b.status, 0) + 1
+    occupied = count_by_status.get("OCCUPIED", 0)
+    occupancy_pct = round((occupied / total) * 100, 1) if total else 0.0
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="occupancy_summary",
+        resource_id=None,
+        intent_text=f"occupancy summary for hospital {hospital_id}",
+        phi_accessed=False,
+    )
+    return jsonify({
+        "hospital_id": hospital_id,
+        "total_beds": total,
+        "count_by_status": count_by_status,
+        "occupancy_pct": occupancy_pct,
+    })
+
+
+@management_bp.route("/hospitals/<int:hospital_id>/encounter-volume", methods=["GET"])
+@require_role("MANAGEMENT")
+def get_encounter_volume(hospital_id):
+    """Aggregated encounter counts by type/status -- no patient identifiers
+    or clinical detail returned, just volume."""
+    rows = Encounter.query.filter_by(hospital_id=hospital_id).all()
+    count_by_type = {}
+    count_by_status = {}
+    for e in rows:
+        count_by_type[e.encounter_type] = count_by_type.get(e.encounter_type, 0) + 1
+        count_by_status[e.status] = count_by_status.get(e.status, 0) + 1
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="encounter_volume",
+        resource_id=None,
+        intent_text=f"encounter volume for hospital {hospital_id}",
+        phi_accessed=False,
+    )
+    return jsonify({
+        "hospital_id": hospital_id,
+        "total_encounters": len(rows),
+        "count_by_type": count_by_type,
+        "count_by_status": count_by_status,
+    })
+
+============================================================
+FILE: api/medications.py
+============================================================
+
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
+from auth.decorators import require_role, current_staff_id, current_role
+from extensions import db
+from models.medication import MedicationRequest, MedicationAdministration
+from ._audit_helper import write_audit
+
+medications_bp = Blueprint("medications", __name__)
+
+
+@medications_bp.route("/encounters/<int:encounter_id>/medication-requests", methods=["GET"])
+@require_role("PHYSICIAN", "NURSE", "PHARMACIST")
+def get_medication_requests(encounter_id):
+    status_filter = request.args.get("status")
+    query = MedicationRequest.query.filter_by(encounter_id=encounter_id)
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+    results = [m.to_dict() for m in query.all()]
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="medication_request",
+        resource_id=None,
+        intent_text=f"medication requests for encounter {encounter_id}",
+        phi_accessed=True,
+    )
+    return jsonify(results)
+
+
+@medications_bp.route("/medication-requests", methods=["POST"])
+@require_role("PHYSICIAN")
+def create_medication_request():
+    payload = request.get_json(force=True)
+    required = ["encounter_id", "patient_id", "drug_name"]
+    missing = [f for f in required if f not in payload]
+    if missing:
+        return jsonify({"error": "missing fields", "fields": missing}), 400
+
+    med_request = MedicationRequest(
+        encounter_id=payload["encounter_id"],
+        patient_id=payload["patient_id"],
+        prescribed_by_staff_id=current_staff_id(),
+        drug_name=payload["drug_name"],
+        ndc_code=payload.get("ndc_code"),
+        dose=payload.get("dose"),
+        route=payload.get("route"),
+        frequency=payload.get("frequency"),
+        status=payload.get("status", "ACTIVE"),
+        controlled_substance_flag=payload.get("controlled_substance_flag", False),
+        start_datetime=datetime.utcnow(),
+    )
+    db.session.add(med_request)
+    db.session.commit()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="CREATE",
+        resource_type="medication_request",
+        resource_id=med_request.medication_request_id,
+        intent_text=payload.get("intent", "new medication order"),
+        phi_accessed=True,
+    )
+    return jsonify(med_request.to_dict()), 201
+
+
+@medications_bp.route("/medication-requests/interactions", methods=["GET"])
+@require_role("PHARMACIST")
+def check_drug_interactions():
+    """
+    Phase 1 stub: returns a static rules-based interaction check for two drug
+    names so the Pharmacy subgraph has a real tool to call end-to-end.
+    Phase 2: replace body with a call to a real interaction-checking service/API.
+    """
+    drug_a = request.args.get("drug_a", "").strip().lower()
+    drug_b = request.args.get("drug_b", "").strip().lower()
+
+    known_interactions = {
+        frozenset(["warfarin", "aspirin"]): "Increased bleeding risk — major interaction.",
+        frozenset(["warfarin", "ibuprofen"]): "Increased bleeding risk — major interaction.",
+        frozenset(["lisinopril", "potassium"]): "Risk of hyperkalemia — monitor levels.",
+        frozenset(["metformin", "contrast dye"]): "Risk of lactic acidosis — hold metformin around imaging.",
+    }
+    key = frozenset([drug_a, drug_b])
+    interaction = known_interactions.get(key)
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="drug_interaction_check",
+        intent_text=f"{drug_a} + {drug_b}",
+        phi_accessed=False,
+    )
+    return jsonify({
+        "drug_a": drug_a,
+        "drug_b": drug_b,
+        "interaction_found": interaction is not None,
+        "detail": interaction or "No known interaction in reference set.",
+    })
+
+
+@medications_bp.route("/medication-administrations", methods=["POST"])
+@require_role("NURSE")
+def create_medication_administration():
+    payload = request.get_json(force=True)
+    required = ["medication_request_id"]
+    missing = [f for f in required if f not in payload]
+    if missing:
+        return jsonify({"error": "missing fields", "fields": missing}), 400
+
+    administration = MedicationAdministration(
+        medication_request_id=payload["medication_request_id"],
+        administered_by_staff_id=current_staff_id(),
+        administered_at=datetime.utcnow(),
+        dose_given=payload.get("dose_given"),
+        notes=payload.get("notes"),
+    )
+    db.session.add(administration)
+    db.session.commit()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="CREATE",
+        resource_type="medication_administration",
+        resource_id=administration.administration_id,
+        intent_text=payload.get("intent", "medication administered"),
+        phi_accessed=True,
+    )
+    return jsonify(administration.to_dict()), 201
+
+
+============================================================
+FILE: api/patients.py
+============================================================
+
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
+from auth.decorators import require_role, current_staff_id, current_role
+from extensions import db
+from models.patient import Patient
+from ._audit_helper import write_audit
+
+patients_bp = Blueprint("patients", __name__)
+
+
+@patients_bp.route("/patients/<string:mrn>", methods=["GET"])
+@require_role("PHYSICIAN", "NURSE", "ADMISSIONS", "LEGAL", "PHARMACIST")
+def get_patient_by_mrn(mrn):
+    patient = Patient.query.filter_by(mrn=mrn).first()
+    if not patient:
+        return jsonify({"error": "not found"}), 404
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="READ",
+        resource_type="patient",
+        resource_id=patient.patient_id,
+        intent_text=request.args.get("intent", "lookup by mrn"),
+        phi_accessed=True,
+    )
+    return jsonify(patient.to_dict())
+
+
+@patients_bp.route("/patients", methods=["POST"])
+@require_role("ADMISSIONS")
+def create_patient():
+    payload = request.get_json(force=True)
+    required = ["mrn", "first_name", "last_name", "dob", "primary_hospital_id"]
+    missing = [f for f in required if f not in payload]
+    if missing:
+        return jsonify({"error": "missing fields", "fields": missing}), 400
+
+    patient = Patient(
+        mrn=payload["mrn"],
+        first_name=payload["first_name"],
+        last_name=payload["last_name"],
+        dob=datetime.strptime(payload["dob"], "%Y-%m-%d").date(),
+        sex=payload.get("sex", "U"),
+        ssn_last4=payload.get("ssn_last4"),
+        address=payload.get("address"),
+        phone=payload.get("phone"),
+        primary_hospital_id=payload["primary_hospital_id"],
+    )
+    db.session.add(patient)
+    db.session.commit()
+
+    write_audit(
+        actor_staff_id=current_staff_id(),
+        actor_role=current_role(),
+        action="CREATE",
+        resource_type="patient",
+        resource_id=patient.patient_id,
+        intent_text=payload.get("intent", "register new patient"),
+        phi_accessed=True,
+    )
+    return jsonify(patient.to_dict()), 201
+
+
+============================================================
+FILE: auth/__init__.py
+============================================================
+
+
+
+============================================================
+FILE: auth/decorators.py
+============================================================
+
+"""
+require_role() is the server-side enforcement boundary.
+
+Teaching point: this decorator checks the identity resolved by
+auth/middleware.py's before_request hook -- which itself verified a Keycloak
+token signature (browser session or Bearer JWT) or validated the internal
+service secret + Staff-table role match (agent-to-API calls). It does NOT
+trust anything the LangGraph agent or the LLM claims about the caller's role
+beyond what middleware already verified. Even if a prompt convinces the
+agent to call the wrong tool, the endpoint independently rejects it.
+"""
+from functools import wraps
+
+from flask import g, jsonify
+
+
+def require_role(*allowed_roles):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            role = getattr(g, "role", None)
+            staff_id = getattr(g, "staff_id", None)
+            if not role or not staff_id:
+                return jsonify({"error": "unauthenticated"}), 401
+            if role not in allowed_roles:
+                return jsonify({
+                    "error": "forbidden",
+                    "detail": f"role '{role}' is not permitted to call this endpoint",
+                }), 403
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def current_staff_id():
+    return getattr(g, "staff_id", None)
+
+
+def current_role():
+    return getattr(g, "role", None)
+
+
+def current_hospital_id():
+    return getattr(g, "hospital_id", None)
+
+
+============================================================
+FILE: auth/keycloak.py
+============================================================
+
+"""
+Keycloak 26 Authorization Code + PKCE flow for the medflow-web public client.
+
+Flow:
+  1. /auth/login    -> build authorize URL with S256 code_challenge, redirect browser
+  2. Keycloak login -> redirects back to /auth/callback?code=...&state=...
+  3. /auth/callback  -> exchange code + code_verifier for tokens at the token endpoint
+  4. Access token is decoded (signature verified against Keycloak's JWKS) and the
+     realm role + keycloak user id are pulled out of the claims and stashed in
+     the Flask session, then mapped to a local `staff` row.
+"""
+import base64
+import hashlib
+import secrets
+import time
+
+import jwt
+import requests
+from flask import current_app, session
+
+_JWKS_CACHE = {"keys": None, "fetched_at": 0}
+_JWKS_TTL_SECONDS = 3600
+
+
+def generate_pkce_pair():
+    verifier = base64.urlsafe_b64encode(secrets.token_bytes(40)).rstrip(b"=").decode("ascii")
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+    return verifier, challenge
+
+
+def build_authorize_url():
+    cfg = current_app.config
+    verifier, challenge = generate_pkce_pair()
+    state = secrets.token_urlsafe(24)
+
+    session["pkce_verifier"] = verifier
+    session["oauth_state"] = state
+
+    params = {
+        "client_id": cfg["KEYCLOAK_PUBLIC_CLIENT_ID"],
+        "response_type": "code",
+        "scope": "openid profile email",
+        "redirect_uri": cfg["KEYCLOAK_REDIRECT_URI"],
+        "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+    }
+    query = "&".join(f"{k}={v}" for k, v in params.items())
+    return f"{_issuer_prop(cfg, 'auth')}?{query}"
+
+
+def build_logout_url(id_token, post_logout_redirect_uri):
+    """RP-initiated logout: without this, clicking Logout only clears our
+    Flask session -- Keycloak's own SSO cookie stays alive, so a subsequent
+    Login silently re-authenticates the same user with no login prompt."""
+    cfg = current_app.config
+    params = {
+        "post_logout_redirect_uri": post_logout_redirect_uri,
+    }
+    if id_token:
+        params["id_token_hint"] = id_token
+    else:
+        params["client_id"] = cfg["KEYCLOAK_PUBLIC_CLIENT_ID"]
+    query = "&".join(f"{k}={v}" for k, v in params.items())
+    return f"{_issuer_prop(cfg, 'logout')}?{query}"
+
+
+def _issuer_prop(cfg, kind):
+    base = f"{cfg['KEYCLOAK_BASE_URL']}/realms/{cfg['KEYCLOAK_REALM']}/protocol/openid-connect"
+    return {
+        "auth": f"{base}/auth",
+        "token": f"{base}/token",
+        "certs": f"{base}/certs",
+        "logout": f"{base}/logout",
+    }[kind]
+
+
+def exchange_code_for_tokens(code, expected_state, received_state):
+    if expected_state != received_state:
+        raise ValueError("OAuth state mismatch — possible CSRF attempt")
+
+    cfg = current_app.config
+    verifier = session.pop("pkce_verifier", None)
+    if not verifier:
+        raise ValueError("Missing PKCE verifier in session")
+
+    resp = requests.post(
+        _issuer_prop(cfg, "token"),
+        data={
+            "grant_type": "authorization_code",
+            "client_id": cfg["KEYCLOAK_PUBLIC_CLIENT_ID"],
+            "code": code,
+            "redirect_uri": cfg["KEYCLOAK_REDIRECT_URI"],
+            "code_verifier": verifier,
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _get_jwks(cfg):
+    now = time.time()
+    if _JWKS_CACHE["keys"] is None or now - _JWKS_CACHE["fetched_at"] > _JWKS_TTL_SECONDS:
+        resp = requests.get(_issuer_prop(cfg, "certs"), timeout=10)
+        resp.raise_for_status()
+        _JWKS_CACHE["keys"] = resp.json()["keys"]
+        _JWKS_CACHE["fetched_at"] = now
+    return _JWKS_CACHE["keys"]
+
+
+def decode_access_token(access_token):
+    """Verifies signature against Keycloak's JWKS and returns the claim set."""
+    cfg = current_app.config
+    header = jwt.get_unverified_header(access_token)
+    keys = _get_jwks(cfg)
+    key_data = next(k for k in keys if k["kid"] == header["kid"])
+    public_key = jwt.algorithms.RSAAlgorithm.from_jwk(key_data)
+
+    claims = jwt.decode(
+        access_token,
+        key=public_key,
+        algorithms=[header["alg"]],
+        audience=cfg["KEYCLOAK_PUBLIC_CLIENT_ID"],
+        issuer=_issuer_prop(cfg, "auth").rsplit("/protocol", 1)[0],
+        options={"verify_aud": False},  # Keycloak's default aud is often 'account'; role check is what matters
+    )
+    return claims
+
+
+def extract_role(claims):
+    """medflow realm roles are assigned directly (not via client roles) — see keycloak/medflow-realm.json"""
+    realm_roles = claims.get("realm_access", {}).get("roles", [])
+    known_roles = {"PHYSICIAN", "NURSE", "PHARMACIST", "ADMISSIONS", "FINANCE", "MANAGEMENT", "LEGAL", "ADMIN"}
+    matched = [r for r in realm_roles if r in known_roles]
+    return matched[0] if matched else None
+
+============================================================
+FILE: auth/middleware.py
+============================================================
+
+"""
+Three ways a request arrives at the Flask API, and how identity is resolved
+for each — this is registered as app.before_request in app.py.
+
+1. Browser (medflow-web public client, PKCE)
+   -> Authorization Code flow already ran; role/staff_id/hospital_id live in
+      the Flask session (see auth/keycloak.py + web routes).
+
+2. Bash / Postman / any external script (medflow-service confidential client)
+   -> Caller sends `Authorization: Bearer <access_token>` obtained via the
+      confidential client. Token signature is verified against Keycloak's
+      JWKS and the realm role claim is read directly off the token — this is
+      what keycloak/test_confidential_client.sh exercises.
+
+3. LangGraph agent calling its own Flask REST API in-process
+   -> The agent already knows the caller's staff_id/role (passed into
+      run_agent by api/chat.py from the *already-authenticated* browser
+      session). To avoid a second full OAuth round trip for a same-process
+      call, the agent sends the shared confidential-client secret plus the
+      claimed identity in headers. The middleware treats the secret as proof
+      the caller is our own backend (not an arbitrary client) and then — the
+      important part — verifies the claimed role against the Staff table
+      rather than trusting the header value outright. A compromised or
+      misprompted agent cannot claim a role the staff record doesn't have.
+"""
+from flask import current_app, g, request, session
+
+from models.staff import Staff
+from .keycloak import decode_access_token, extract_role
+
+
+def resolve_identity():
+    g.role = None
+    g.staff_id = None
+    g.hospital_id = None
+
+    # --- Path 1: browser session ---
+    if session.get("staff_id"):
+        g.staff_id = session.get("staff_id")
+        g.role = session.get("role")
+        g.hospital_id = session.get("hospital_id")
+        return
+
+    # --- Path 3: internal agent -> API service channel ---
+    service_secret = request.headers.get("X-Service-Secret")
+    if service_secret and service_secret == current_app.config["KEYCLOAK_CONFIDENTIAL_CLIENT_SECRET"]:
+        claimed_staff_id = request.headers.get("X-Acting-Staff-Id")
+        claimed_role = request.headers.get("X-Acting-Role")
+        if claimed_staff_id:
+            staff = Staff.query.get(int(claimed_staff_id))
+            # Verify against the DB record — never trust the header's role claim alone
+            if staff and staff.active and staff.role == claimed_role:
+                g.staff_id = staff.staff_id
+                g.role = staff.role
+                g.hospital_id = staff.hospital_id
+        return
+
+    # --- Path 2: Bearer JWT from the confidential client (bash/script testing) ---
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1]
+        try:
+            claims = decode_access_token(token)
+        except Exception:
+            return
+        role = extract_role(claims)
+        keycloak_user_id = claims.get("sub")
+        staff = Staff.query.filter_by(keycloak_user_id=keycloak_user_id).first()
+        if staff and staff.active and staff.role == role:
+            g.staff_id = staff.staff_id
+            g.role = staff.role
+            g.hospital_id = staff.hospital_id
+
+
+============================================================
+FILE: auth/routes.py
+============================================================
+
+from flask import Blueprint, redirect, request, session, url_for, flash
+
+from models.staff import Staff
+from .keycloak import (
+    build_authorize_url,
+    build_logout_url,
+    exchange_code_for_tokens,
+    decode_access_token,
+    extract_role,
+)
+
+auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
+
+
+@auth_bp.route("/login")
+def login():
+    return redirect(build_authorize_url())
+
+
+@auth_bp.route("/callback")
+def callback():
+    code = request.args.get("code")
+    state = request.args.get("state")
+    if not code:
+        flash("Login failed: no authorization code returned.", "danger")
+        return redirect(url_for("web.login_page"))
+
+    try:
+        tokens = exchange_code_for_tokens(code, session.get("oauth_state"), state)
+        claims = decode_access_token(tokens["access_token"])
+    except Exception as exc:
+        flash(f"Login failed: {exc}", "danger")
+        return redirect(url_for("web.login_page"))
+
+    role = extract_role(claims)
+    keycloak_user_id = claims.get("sub")
+    staff = Staff.query.filter_by(keycloak_user_id=keycloak_user_id).first()
+
+    if not staff or not staff.active:
+        flash("No active MedFlow staff record is linked to this Keycloak account.", "danger")
+        return redirect(url_for("web.login_page"))
+
+    if staff.role != role:
+        flash("Keycloak role does not match the staff record on file. Contact an administrator.", "danger")
+        return redirect(url_for("web.login_page"))
+
+    session["staff_id"] = staff.staff_id
+    session["role"] = staff.role
+    session["hospital_id"] = staff.hospital_id
+    session["display_name"] = f"{staff.first_name} {staff.last_name}"
+    session["id_token"] = tokens.get("id_token")
+    return redirect(url_for("web.dashboard"))
+
+
+@auth_bp.route("/logout")
+def logout():
+    id_token = session.get("id_token")
+    session.clear()
+    # Must match a "Valid post logout redirect URI" registered on the
+    # medflow-web client exactly -- that's currently http://localhost:5000/
+    # with no wildcard, so we use web.index (which redirects to /login once
+    # session.clear() above has already run) rather than /login directly.
+    post_logout_redirect_uri = url_for("web.index", _external=True)
+    return redirect(build_logout_url(id_token, post_logout_redirect_uri))
+
+============================================================
+FILE: models/__init__.py
+============================================================
+
+from .hospital import Hospital, Department, Unit, Bed
+from .staff import Staff
+from .patient import Patient
+from .encounter import Encounter, Diagnosis
+from .lab import LabOrder
+from .medication import MedicationRequest, MedicationAdministration
+from .inventory import InventoryItem, InventoryTransaction
+from .bed_assignment import BedAssignment
+from .billing import BillingClaim
+from .audit import AuditLog
+from .chat import ChatSession, ChatMessage
+from .system_log import HttpCallLog, LlmCallLog
+
+__all__ = [
+    "Hospital", "Department", "Unit", "Bed",
+    "Staff",
+    "Patient",
+    "Encounter", "Diagnosis",
+    "LabOrder",
+    "MedicationRequest", "MedicationAdministration",
+    "InventoryItem", "InventoryTransaction",
+    "BedAssignment",
+    "BillingClaim",
+    "AuditLog",
+    "ChatSession", "ChatMessage",
+    "HttpCallLog", "LlmCallLog",
+]
+
+============================================================
+FILE: models/audit.py
+============================================================
+
+from datetime import datetime
+from extensions import db
+
+
+class AuditLog(db.Model):
+    __tablename__ = "audit_log"
+
+    audit_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    actor_staff_id = db.Column(db.BigInteger, db.ForeignKey("staff.staff_id"), nullable=False)
+    actor_role = db.Column(db.String(30), nullable=False)
+    action = db.Column(db.Enum("READ", "CREATE", "UPDATE", "DELETE"), nullable=False)
+    resource_type = db.Column(db.String(50), nullable=False)
+    resource_id = db.Column(db.BigInteger)
+    intent_text = db.Column(db.String(255))
+    phi_accessed = db.Column(db.Boolean, nullable=False, default=False)
+    occurred_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+    ip_address = db.Column(db.String(45))
+
+    def to_dict(self):
+        return {
+            "audit_id": self.audit_id,
+            "actor_staff_id": self.actor_staff_id,
+            "actor_role": self.actor_role,
+            "action": self.action,
+            "resource_type": self.resource_type,
+            "resource_id": self.resource_id,
+            "intent_text": self.intent_text,
+            "phi_accessed": self.phi_accessed,
+            "occurred_at": self.occurred_at.isoformat() if self.occurred_at else None,
+            "ip_address": self.ip_address,
+        }
+
+
+============================================================
+FILE: models/bed_assignment.py
+============================================================
+
+from extensions import db
+
+
+class BedAssignment(db.Model):
+    __tablename__ = "bed_assignments"
+
+    assignment_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    bed_id = db.Column(db.BigInteger, db.ForeignKey("beds.bed_id"), nullable=False)
+    encounter_id = db.Column(db.BigInteger, db.ForeignKey("encounters.encounter_id"), nullable=False)
+    assigned_at = db.Column(db.DateTime, nullable=False)
+    released_at = db.Column(db.DateTime)
+
+    def to_dict(self):
+        return {
+            "assignment_id": self.assignment_id,
+            "bed_id": self.bed_id,
+            "encounter_id": self.encounter_id,
+            "assigned_at": self.assigned_at.isoformat() if self.assigned_at else None,
+            "released_at": self.released_at.isoformat() if self.released_at else None,
+        }
+
+
+============================================================
+FILE: models/billing.py
+============================================================
+
+from extensions import db
+
+
+class BillingClaim(db.Model):
+    """Phase 2 (Finance subgraph) uses this table; defined in Phase 1 so the full
+    schema is present and FK-consistent from the start."""
+    __tablename__ = "billing_claims"
+
+    claim_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    encounter_id = db.Column(db.BigInteger, db.ForeignKey("encounters.encounter_id"), nullable=False)
+    hospital_id = db.Column(db.BigInteger, db.ForeignKey("hospitals.hospital_id"), nullable=False)
+    payer_name = db.Column(db.String(150))
+    claim_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    status = db.Column(db.Enum("SUBMITTED", "PAID", "DENIED", "APPEALED"), nullable=False, default="SUBMITTED")
+    submitted_at = db.Column(db.DateTime)
+    adjudicated_at = db.Column(db.DateTime)
+    denial_reason = db.Column(db.String(255))
+
+    def to_dict(self):
+        return {
+            "claim_id": self.claim_id,
+            "encounter_id": self.encounter_id,
+            "hospital_id": self.hospital_id,
+            "payer_name": self.payer_name,
+            "claim_amount": float(self.claim_amount) if self.claim_amount is not None else None,
+            "status": self.status,
+            "submitted_at": self.submitted_at.isoformat() if self.submitted_at else None,
+            "adjudicated_at": self.adjudicated_at.isoformat() if self.adjudicated_at else None,
+            "denial_reason": self.denial_reason,
+        }
+
+
+============================================================
+FILE: models/chat.py
+============================================================
+
+from datetime import datetime
+from extensions import db
+
+
+class ChatSession(db.Model):
+    __tablename__ = "chat_sessions"
+
+    session_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    staff_id = db.Column(db.BigInteger, db.ForeignKey("staff.staff_id"), nullable=False)
+    role_context = db.Column(db.String(30), nullable=False)
+    started_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+
+    messages = db.relationship("ChatMessage", backref="session", lazy=True)
+
+    def to_dict(self):
+        return {
+            "session_id": self.session_id,
+            "staff_id": self.staff_id,
+            "role_context": self.role_context,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+        }
+
+
+class ChatMessage(db.Model):
+    __tablename__ = "chat_messages"
+
+    message_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    session_id = db.Column(db.BigInteger, db.ForeignKey("chat_sessions.session_id"), nullable=False)
+    sender = db.Column(db.Enum("USER", "ASSISTANT", "TOOL"), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    tool_name = db.Column(db.String(100))
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "message_id": self.message_id,
+            "session_id": self.session_id,
+            "sender": self.sender,
+            "content": self.content,
+            "tool_name": self.tool_name,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+============================================================
+FILE: models/encounter.py
+============================================================
+
+from extensions import db
+
+
+class Encounter(db.Model):
+    __tablename__ = "encounters"
+
+    encounter_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    patient_id = db.Column(db.BigInteger, db.ForeignKey("patients.patient_id"), nullable=False)
+    hospital_id = db.Column(db.BigInteger, db.ForeignKey("hospitals.hospital_id"), nullable=False)
+    encounter_type = db.Column(db.Enum("INPATIENT", "OUTPATIENT", "ER"), nullable=False)
+    status = db.Column(
+        db.Enum("PLANNED", "ARRIVED", "IN_PROGRESS", "DISCHARGED", "CANCELLED"),
+        nullable=False,
+        default="PLANNED",
+    )
+    admit_datetime = db.Column(db.DateTime)
+    discharge_datetime = db.Column(db.DateTime)
+    attending_physician_id = db.Column(db.BigInteger, db.ForeignKey("staff.staff_id"))
+    chief_complaint = db.Column(db.String(255))
+    bed_id = db.Column(db.BigInteger, db.ForeignKey("beds.bed_id"))
+
+    def to_dict(self):
+        return {
+            "encounter_id": self.encounter_id,
+            "patient_id": self.patient_id,
+            "hospital_id": self.hospital_id,
+            "encounter_type": self.encounter_type,
+            "status": self.status,
+            "admit_datetime": self.admit_datetime.isoformat() if self.admit_datetime else None,
+            "discharge_datetime": self.discharge_datetime.isoformat() if self.discharge_datetime else None,
+            "attending_physician_id": self.attending_physician_id,
+            "chief_complaint": self.chief_complaint,
+            "bed_id": self.bed_id,
+        }
+
+
+class Diagnosis(db.Model):
+    __tablename__ = "diagnoses"
+
+    diagnosis_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    encounter_id = db.Column(db.BigInteger, db.ForeignKey("encounters.encounter_id"), nullable=False)
+    icd10_code = db.Column(db.String(10), nullable=False)
+    description = db.Column(db.String(255))
+    diagnosed_by_staff_id = db.Column(db.BigInteger, db.ForeignKey("staff.staff_id"), nullable=False)
+    diagnosed_at = db.Column(db.DateTime, nullable=False)
+
+    def to_dict(self):
+        return {
+            "diagnosis_id": self.diagnosis_id,
+            "encounter_id": self.encounter_id,
+            "icd10_code": self.icd10_code,
+            "description": self.description,
+            "diagnosed_by_staff_id": self.diagnosed_by_staff_id,
+            "diagnosed_at": self.diagnosed_at.isoformat() if self.diagnosed_at else None,
+        }
+
+
+============================================================
+FILE: models/hospital.py
+============================================================
+
+from datetime import datetime
+from extensions import db
+
+
+class Hospital(db.Model):
+    __tablename__ = "hospitals"
+
+    hospital_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(150), nullable=False)
+    address = db.Column(db.String(255))
+    timezone = db.Column(db.String(50), nullable=False, default="America/Chicago")
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+
+    departments = db.relationship("Department", backref="hospital", lazy=True)
+
+    def to_dict(self):
+        return {
+            "hospital_id": self.hospital_id,
+            "name": self.name,
+            "address": self.address,
+            "timezone": self.timezone,
+        }
+
+
+class Department(db.Model):
+    __tablename__ = "departments"
+
+    department_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    hospital_id = db.Column(db.BigInteger, db.ForeignKey("hospitals.hospital_id"), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    dept_type = db.Column(
+        db.Enum("INPATIENT", "OUTPATIENT", "PHARMACY", "INVENTORY", "ADMISSIONS", "ER"),
+        nullable=False,
+    )
+
+    units = db.relationship("Unit", backref="department", lazy=True)
+
+    def to_dict(self):
+        return {
+            "department_id": self.department_id,
+            "hospital_id": self.hospital_id,
+            "name": self.name,
+            "dept_type": self.dept_type,
+        }
+
+
+class Unit(db.Model):
+    __tablename__ = "units"
+
+    unit_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    department_id = db.Column(db.BigInteger, db.ForeignKey("departments.department_id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    floor = db.Column(db.String(20))
+    capacity = db.Column(db.Integer, nullable=False, default=0)
+
+    beds = db.relationship("Bed", backref="unit", lazy=True)
+
+    def to_dict(self):
+        return {
+            "unit_id": self.unit_id,
+            "department_id": self.department_id,
+            "name": self.name,
+            "floor": self.floor,
+            "capacity": self.capacity,
+        }
+
+
+class Bed(db.Model):
+    __tablename__ = "beds"
+
+    bed_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    unit_id = db.Column(db.BigInteger, db.ForeignKey("units.unit_id"), nullable=False)
+    bed_number = db.Column(db.String(20), nullable=False)
+    status = db.Column(
+        db.Enum("AVAILABLE", "OCCUPIED", "CLEANING", "OUT_OF_SERVICE"),
+        nullable=False,
+        default="AVAILABLE",
+    )
+
+    def to_dict(self):
+        return {
+            "bed_id": self.bed_id,
+            "unit_id": self.unit_id,
+            "bed_number": self.bed_number,
+            "status": self.status,
+        }
+
+
+============================================================
+FILE: models/inventory.py
+============================================================
+
+from extensions import db
+
+
+class InventoryItem(db.Model):
+    __tablename__ = "inventory_items"
+
+    inventory_item_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    hospital_id = db.Column(db.BigInteger, db.ForeignKey("hospitals.hospital_id"), nullable=False)
+    sku = db.Column(db.String(50), nullable=False)
+    item_name = db.Column(db.String(150), nullable=False)
+    category = db.Column(db.Enum("DRUG", "MEDICAL_SUPPLY", "EQUIPMENT"), nullable=False)
+    unit_of_measure = db.Column(db.String(20))
+    quantity_on_hand = db.Column(db.Integer, nullable=False, default=0)
+    reorder_threshold = db.Column(db.Integer, nullable=False, default=0)
+    is_controlled_substance = db.Column(db.Boolean, default=False)
+
+    __table_args__ = (db.UniqueConstraint("hospital_id", "sku", name="uq_sku_per_hospital"),)
+
+    def to_dict(self):
+        return {
+            "inventory_item_id": self.inventory_item_id,
+            "hospital_id": self.hospital_id,
+            "sku": self.sku,
+            "item_name": self.item_name,
+            "category": self.category,
+            "unit_of_measure": self.unit_of_measure,
+            "quantity_on_hand": self.quantity_on_hand,
+            "reorder_threshold": self.reorder_threshold,
+            "is_controlled_substance": self.is_controlled_substance,
+            "low_stock": self.quantity_on_hand <= self.reorder_threshold,
+        }
+
+
+class InventoryTransaction(db.Model):
+    __tablename__ = "inventory_transactions"
+
+    transaction_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    inventory_item_id = db.Column(
+        db.BigInteger, db.ForeignKey("inventory_items.inventory_item_id"), nullable=False
+    )
+    transaction_type = db.Column(db.Enum("RECEIPT", "DISPENSE", "ADJUSTMENT", "TRANSFER"), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    related_medication_request_id = db.Column(
+        db.BigInteger, db.ForeignKey("medication_requests.medication_request_id")
+    )
+    performed_by_staff_id = db.Column(db.BigInteger, db.ForeignKey("staff.staff_id"), nullable=False)
+    transaction_at = db.Column(db.DateTime, nullable=False)
+
+    def to_dict(self):
+        return {
+            "transaction_id": self.transaction_id,
+            "inventory_item_id": self.inventory_item_id,
+            "transaction_type": self.transaction_type,
+            "quantity": self.quantity,
+            "related_medication_request_id": self.related_medication_request_id,
+            "performed_by_staff_id": self.performed_by_staff_id,
+            "transaction_at": self.transaction_at.isoformat() if self.transaction_at else None,
+        }
+
+
+============================================================
+FILE: models/lab.py
+============================================================
+
+from extensions import db
+
+
+class LabOrder(db.Model):
+    __tablename__ = "lab_orders"
+
+    lab_order_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    encounter_id = db.Column(db.BigInteger, db.ForeignKey("encounters.encounter_id"), nullable=False)
+    ordered_by_staff_id = db.Column(db.BigInteger, db.ForeignKey("staff.staff_id"), nullable=False)
+    test_code = db.Column(db.String(20), nullable=False)
+    test_name = db.Column(db.String(150), nullable=False)
+    status = db.Column(
+        db.Enum("ORDERED", "COLLECTED", "IN_LAB", "RESULTED", "CANCELLED"),
+        nullable=False,
+        default="ORDERED",
+    )
+    ordered_at = db.Column(db.DateTime, nullable=False)
+    resulted_at = db.Column(db.DateTime)
+    result_value = db.Column(db.String(100))
+    result_units = db.Column(db.String(30))
+    abnormal_flag = db.Column(db.Boolean, default=False)
+
+    def to_dict(self):
+        return {
+            "lab_order_id": self.lab_order_id,
+            "encounter_id": self.encounter_id,
+            "ordered_by_staff_id": self.ordered_by_staff_id,
+            "test_code": self.test_code,
+            "test_name": self.test_name,
+            "status": self.status,
+            "ordered_at": self.ordered_at.isoformat() if self.ordered_at else None,
+            "resulted_at": self.resulted_at.isoformat() if self.resulted_at else None,
+            "result_value": self.result_value,
+            "result_units": self.result_units,
+            "abnormal_flag": self.abnormal_flag,
+        }
+
+
+============================================================
+FILE: models/medication.py
+============================================================
+
+from extensions import db
+
+
+class MedicationRequest(db.Model):
+    __tablename__ = "medication_requests"
+
+    medication_request_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    encounter_id = db.Column(db.BigInteger, db.ForeignKey("encounters.encounter_id"), nullable=False)
+    patient_id = db.Column(db.BigInteger, db.ForeignKey("patients.patient_id"), nullable=False)
+    prescribed_by_staff_id = db.Column(db.BigInteger, db.ForeignKey("staff.staff_id"), nullable=False)
+    drug_name = db.Column(db.String(150), nullable=False)
+    ndc_code = db.Column(db.String(20))
+    dose = db.Column(db.String(50))
+    route = db.Column(db.String(30))
+    frequency = db.Column(db.String(50))
+    status = db.Column(
+        db.Enum("DRAFT", "ACTIVE", "COMPLETED", "CANCELLED", "ON_HOLD"),
+        nullable=False,
+        default="DRAFT",
+    )
+    controlled_substance_flag = db.Column(db.Boolean, default=False)
+    start_datetime = db.Column(db.DateTime)
+    end_datetime = db.Column(db.DateTime)
+
+    def to_dict(self):
+        return {
+            "medication_request_id": self.medication_request_id,
+            "encounter_id": self.encounter_id,
+            "patient_id": self.patient_id,
+            "prescribed_by_staff_id": self.prescribed_by_staff_id,
+            "drug_name": self.drug_name,
+            "ndc_code": self.ndc_code,
+            "dose": self.dose,
+            "route": self.route,
+            "frequency": self.frequency,
+            "status": self.status,
+            "controlled_substance_flag": self.controlled_substance_flag,
+            "start_datetime": self.start_datetime.isoformat() if self.start_datetime else None,
+            "end_datetime": self.end_datetime.isoformat() if self.end_datetime else None,
+        }
+
+
+class MedicationAdministration(db.Model):
+    __tablename__ = "medication_administrations"
+
+    administration_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    medication_request_id = db.Column(
+        db.BigInteger, db.ForeignKey("medication_requests.medication_request_id"), nullable=False
+    )
+    administered_by_staff_id = db.Column(db.BigInteger, db.ForeignKey("staff.staff_id"), nullable=False)
+    administered_at = db.Column(db.DateTime, nullable=False)
+    dose_given = db.Column(db.String(50))
+    notes = db.Column(db.String(255))
+
+    def to_dict(self):
+        return {
+            "administration_id": self.administration_id,
+            "medication_request_id": self.medication_request_id,
+            "administered_by_staff_id": self.administered_by_staff_id,
+            "administered_at": self.administered_at.isoformat() if self.administered_at else None,
+            "dose_given": self.dose_given,
+            "notes": self.notes,
+        }
+
+
+============================================================
+FILE: models/patient.py
+============================================================
+
+from datetime import datetime
+from extensions import db
+
+
+class Patient(db.Model):
+    """PHI-bearing table. Never returned directly by an endpoint without a role check."""
+    __tablename__ = "patients"
+
+    patient_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    mrn = db.Column(db.String(20), nullable=False, unique=True)
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    dob = db.Column(db.Date, nullable=False)
+    sex = db.Column(db.Enum("M", "F", "O", "U"), nullable=False, default="U")
+    ssn_last4 = db.Column(db.String(4))
+    address = db.Column(db.String(255))
+    phone = db.Column(db.String(30))
+    primary_hospital_id = db.Column(db.BigInteger, db.ForeignKey("hospitals.hospital_id"), nullable=False)
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+
+    def to_dict(self, full=True):
+        base = {
+            "patient_id": self.patient_id,
+            "mrn": self.mrn,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "dob": self.dob.isoformat() if self.dob else None,
+            "sex": self.sex,
+        }
+        if full:
+            base.update({
+                "ssn_last4": self.ssn_last4,
+                "address": self.address,
+                "phone": self.phone,
+                "primary_hospital_id": self.primary_hospital_id,
+            })
+        return base
+
+
+============================================================
+FILE: models/staff.py
+============================================================
+
+from extensions import db
+
+ROLE_VALUES = (
+    "PHYSICIAN", "NURSE", "PHARMACIST", "ADMISSIONS",
+    "FINANCE", "MANAGEMENT", "LEGAL", "ADMIN",
+)
+
+
+class Staff(db.Model):
+    __tablename__ = "staff"
+
+    staff_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    keycloak_user_id = db.Column(db.String(64), nullable=False, unique=True)
+    hospital_id = db.Column(db.BigInteger, db.ForeignKey("hospitals.hospital_id"), nullable=False)
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    role = db.Column(db.Enum(*ROLE_VALUES), nullable=False)
+    npi_number = db.Column(db.String(20))
+    license_number = db.Column(db.String(50))
+    active = db.Column(db.Boolean, nullable=False, default=True)
+
+    def to_dict(self):
+        return {
+            "staff_id": self.staff_id,
+            "keycloak_user_id": self.keycloak_user_id,
+            "hospital_id": self.hospital_id,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "role": self.role,
+            "active": self.active,
+        }
+
+
+============================================================
+FILE: models/system_log.py
+============================================================
+
+from datetime import datetime
+from extensions import db
+
+
+class HttpCallLog(db.Model):
+    """Every inbound HTTP request the Flask app receives -- browser UI,
+    the agent's own internal service-channel calls to its own REST API, and
+    bash/script Bearer-token calls all land here via app.py's after_request
+    hook, so this one table covers all three call paths."""
+    __tablename__ = "http_call_log"
+
+    log_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    staff_id = db.Column(db.BigInteger, db.ForeignKey("staff.staff_id"))
+    actor_role = db.Column(db.String(30))
+    method = db.Column(db.String(10), nullable=False)
+    path = db.Column(db.String(255), nullable=False)
+    query_string = db.Column(db.String(500))
+    request_body = db.Column(db.Text)
+    response_status = db.Column(db.Integer)
+    response_body = db.Column(db.Text)
+    duration_ms = db.Column(db.Integer)
+    ip_address = db.Column(db.String(45))
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "log_id": self.log_id,
+            "staff_id": self.staff_id,
+            "actor_role": self.actor_role,
+            "method": self.method,
+            "path": self.path,
+            "query_string": self.query_string,
+            "request_body": self.request_body,
+            "response_status": self.response_status,
+            "response_body": self.response_body,
+            "duration_ms": self.duration_ms,
+            "ip_address": self.ip_address,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class LlmCallLog(db.Model):
+    """Every call the LangGraph agent makes to the Anthropic API, with the
+    full request/response message list and a cost estimate. See
+    agent/pricing.py for the (placeholder -- verify before trusting) rate
+    table used to compute cost_usd."""
+    __tablename__ = "llm_call_log"
+
+    log_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    staff_id = db.Column(db.BigInteger, db.ForeignKey("staff.staff_id"))
+    actor_role = db.Column(db.String(30))
+    chat_session_id = db.Column(db.BigInteger, db.ForeignKey("chat_sessions.session_id"))
+    model = db.Column(db.String(100), nullable=False)
+    request_json = db.Column(db.Text)
+    response_json = db.Column(db.Text)
+    input_tokens = db.Column(db.Integer)
+    output_tokens = db.Column(db.Integer)
+    cost_usd = db.Column(db.Numeric(10, 6))
+    latency_ms = db.Column(db.Integer)
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "log_id": self.log_id,
+            "staff_id": self.staff_id,
+            "actor_role": self.actor_role,
+            "chat_session_id": self.chat_session_id,
+            "model": self.model,
+            "request_json": self.request_json,
+            "response_json": self.response_json,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "cost_usd": float(self.cost_usd) if self.cost_usd is not None else None,
+            "latency_ms": self.latency_ms,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+============================================================
+FILE: services/__init__.py
+============================================================
+
+
+
+============================================================
+FILE: services/logging_service.py
+============================================================
+
+"""
+Global logging service. Two independent write paths, each writing to TWO
+sinks -- a MySQL table (queryable from the app) and a structured stdout JSON
+line (for FluentD/ELK-style centralization, see structured_logger.py):
+
+  log_http_call() -- called once per request from app.py's after_request
+                      hook. Covers every inbound HTTP call regardless of
+                      caller: browser (session auth), the LangGraph agent's
+                      internal service-channel calls to its own REST API,
+                      and bash/script Bearer-token calls. One hook, one
+                      mechanism, all three paths -- see auth/middleware.py
+                      for how each of those three is authenticated.
+
+  log_llm_call()   -- called once per Anthropic API call from
+                      agent/graph.py's agent_node, with the full message
+                      list, token counts, and a cost estimate from
+                      agent/pricing.py.
+
+Both are best-effort: a logging failure must never break the actual request
+or chat turn, so callers (app.py, agent/graph.py) wrap these in try/except.
+The console emission is deliberately NOT truncated the way the DB copy is --
+the whole point of the console stream is a full, ungapped record for
+downstream tooling; the DB copy is capped to keep MySQL row sizes sane for
+in-app querying.
+"""
+import json
+from decimal import Decimal
+
+from extensions import db
+from models.system_log import HttpCallLog, LlmCallLog
+from agent.pricing import get_pricing_for_model
+from .structured_logger import http_logger, llm_logger
+
+MAX_LOGGED_BODY_CHARS = 8000  # cap applied to the MySQL copy only, not the console/ELK stream
+
+
+def _truncate(text):
+    if text is None:
+        return None
+    if len(text) > MAX_LOGGED_BODY_CHARS:
+        return text[:MAX_LOGGED_BODY_CHARS] + f"...[truncated, {len(text)} chars total]"
+    return text
+
+
+def log_http_call(*, staff_id, actor_role, method, path, query_string,
+                   request_body, response_status, response_body,
+                   duration_ms, ip_address):
+    # --- Sink 1: MySQL (truncated, queryable from the app) ---
+    entry = HttpCallLog(
+        staff_id=staff_id,
+        actor_role=actor_role,
+        method=method,
+        path=path,
+        query_string=query_string,
+        request_body=_truncate(request_body),
+        response_status=response_status,
+        response_body=_truncate(response_body),
+        duration_ms=duration_ms,
+        ip_address=ip_address,
+    )
+    db.session.add(entry)
+    db.session.commit()
+
+    # --- Sink 2: stdout JSON line (full, untruncated -- for FluentD/ELK) ---
+    try:
+        http_logger.info({
+            "event": "http_call",
+            "staff_id": staff_id,
+            "actor_role": actor_role,
+            "method": method,
+            "path": path,
+            "query_string": query_string,
+            "request_body": request_body,
+            "response_status": response_status,
+            "response_body": response_body,
+            "duration_ms": duration_ms,
+            "ip_address": ip_address,
+        })
+    except Exception:
+        pass  # console logging must never break the request
+
+    return entry
+
+
+def messages_to_loggable(messages):
+    """Convert LangChain BaseMessage objects into plain JSON-able dicts."""
+    out = []
+    for m in messages:
+        item = {"type": m.__class__.__name__, "content": m.content}
+        tool_calls = getattr(m, "tool_calls", None)
+        if tool_calls:
+            item["tool_calls"] = tool_calls
+        tool_call_id = getattr(m, "tool_call_id", None)
+        if tool_call_id:
+            item["tool_call_id"] = tool_call_id
+        out.append(item)
+    return out
+
+
+def log_llm_call(*, staff_id, actor_role, chat_session_id, model,
+                  request_messages, response_message,
+                  input_tokens, output_tokens, latency_ms):
+    pricing = get_pricing_for_model(model)
+    cost_usd = None
+    if pricing and input_tokens is not None and output_tokens is not None:
+        cost_usd = (
+            (input_tokens / 1_000_000) * pricing["input_per_mtok"]
+            + (output_tokens / 1_000_000) * pricing["output_per_mtok"]
+        )
+
+    request_loggable = messages_to_loggable(request_messages)
+    response_loggable = messages_to_loggable([response_message]) if response_message else []
+
+    # --- Sink 1: MySQL (truncated JSON strings, queryable from the app) ---
+    entry = LlmCallLog(
+        staff_id=staff_id,
+        actor_role=actor_role,
+        chat_session_id=chat_session_id,
+        model=model,
+        request_json=_truncate(json.dumps(request_loggable)),
+        response_json=_truncate(json.dumps(response_loggable)),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cost_usd=Decimal(str(round(cost_usd, 6))) if cost_usd is not None else None,
+        latency_ms=latency_ms,
+    )
+    db.session.add(entry)
+    db.session.commit()
+
+    # --- Sink 2: stdout JSON line (full nested JSON, untruncated -- for FluentD/ELK) ---
+    try:
+        llm_logger.info({
+            "event": "llm_call",
+            "staff_id": staff_id,
+            "actor_role": actor_role,
+            "chat_session_id": chat_session_id,
+            "model": model,
+            "request_messages": request_loggable,
+            "response_message": response_loggable,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_usd": cost_usd,
+            "latency_ms": latency_ms,
+        })
+    except Exception:
+        pass  # console logging must never break the chat turn
+
+    return entry
+
+============================================================
+FILE: services/structured_logger.py
+============================================================
+
+"""
+Structured JSON logging to stdout, separate from the DB-backed audit trail
+in models.system_log. This exists specifically for production log
+centralization: a log shipper (FluentD, Fluent Bit, Filebeat, Vector, etc.)
+tails the container's stdout and forwards each line to Elasticsearch/ELK,
+Splunk, Datadog, or similar -- no code here talks to those systems directly,
+it just emits well-formed single-line JSON so any of them can ingest it.
+
+Two loggers:
+  http_logger  -- one line per inbound HTTP request (see services/logging_service.py)
+  llm_logger   -- one line per Anthropic API call, full request/response included
+
+Why not just log the DB write? Two independent sinks on purpose: the MySQL
+tables (http_call_log / llm_call_log) are queryable from the app itself and
+subject to the app's own retention/backup policy; the stdout stream is for
+infrastructure-level tooling that has nothing to do with the app's database
+and needs to keep working even if MySQL is down.
+
+Log rotation / retention for the stdout stream is the log shipper's/
+container runtime's job (e.g. Docker's log-driver options, or whatever
+FluentD/ELK retention policy you configure) -- this module has no rotation
+logic of its own by design.
+"""
+import json
+import logging
+import sys
+from datetime import datetime, timezone
+
+
+class _JsonFormatter(logging.Formatter):
+    def format(self, record):
+        payload = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+        }
+        if isinstance(record.msg, dict):
+            payload.update(record.msg)
+        else:
+            payload["message"] = record.getMessage()
+        try:
+            return json.dumps(payload, default=str)
+        except (TypeError, ValueError):
+            # Never let a logging call raise -- fall back to a safe, partial line
+            # rather than losing the log entry (or worse, crashing the request).
+            return json.dumps({
+                "timestamp": payload["timestamp"],
+                "level": payload["level"],
+                "logger": payload["logger"],
+                "message": "log payload was not JSON-serializable",
+            })
+
+
+def _build_logger(name):
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(_JsonFormatter())
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False  # don't also pass through Flask's default handler and double-print
+    return logger
+
+
+http_logger = _build_logger("medflow.http")
+llm_logger = _build_logger("medflow.llm")
+
+============================================================
+FILE: web/__init__.py
+============================================================
+
+
+
+============================================================
+FILE: web/routes.py
+============================================================
+
+from flask import Blueprint, render_template, session, redirect, url_for, flash
+
+web_bp = Blueprint("web", __name__, template_folder="templates")
+
+def _require_login():
+    return session.get("staff_id") is not None
+
+def _require_admin():
+    return session.get("role") == "ADMIN"
+
+@web_bp.route("/admin/usage")
+def admin_usage():
+    if not _require_login():
+        return redirect(url_for("web.login_page"))
+    if not _require_admin():
+        flash("The Usage & Cost dashboard is restricted to ADMIN accounts.", "warning")
+        return redirect(url_for("web.dashboard"))
+    return render_template(
+        "admin_usage.html",
+        role=session.get("role"),
+        display_name=session.get("display_name"),
+    )
+
+@web_bp.route("/")
+def index():
+    if _require_login():
+        return redirect(url_for("web.dashboard"))
+    return redirect(url_for("web.login_page"))
+
+
+@web_bp.route("/login")
+def login_page():
+    return render_template("login.html")
+
+
+@web_bp.route("/dashboard")
+def dashboard():
+    if not _require_login():
+        return redirect(url_for("web.login_page"))
+    return render_template(
+        "dashboard.html",
+        role=session.get("role"),
+        display_name=session.get("display_name"),
+    )
+
+
+@web_bp.route("/chat")
+def chat_page():
+    if not _require_login():
+        return redirect(url_for("web.login_page"))
+    return render_template(
+        "chat.html",
+        role=session.get("role"),
+        display_name=session.get("display_name"),
+    )
+
+
+@web_bp.route("/training")
+def training_index():
+    return render_template("training/index.html")
+
+
+@web_bp.route("/training/architecture")
+def training_architecture():
+    return render_template("training/architecture.html")
+
+
+@web_bp.route("/training/rbac")
+def training_rbac():
+    return render_template("training/rbac.html")
+
+
+@web_bp.route("/training/audit")
+def training_audit():
+    return render_template("training/audit.html")
+
+
+@web_bp.route("/training/hl7-fhir")
+def training_hl7_fhir():
+    return render_template("training/hl7_fhir.html")
+
+@web_bp.route("/training/genai-agentic-langgraph")
+def training_genai_agentic_langgraph():
+    return render_template("training/genai_agentic_langgraph.html")

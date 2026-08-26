@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Audit Logging — MedFlow Training{% endblock %}
+{% block content %}
+<h3>Audit Logging Pattern</h3>
+<p class="text-muted">Who accessed what, and why — captured at the moment it happens.</p>
+
+<div class="card mb-4">
+    <div class="card-header">Design choice: audit writes live inside each endpoint, not in a separate step</div>
+    <div class="card-body">
+        <p>An earlier design considered a dedicated LangGraph "audit_writer"
+        node that runs after the agent's tool loop finishes. Phase 1 instead
+        writes the <code>audit_log</code> row synchronously inside each Flask
+        endpoint (see <code>api/_audit_helper.py</code>'s <code>write_audit()</code>,
+        called from every PHI-touching route).</p>
+        <p class="mb-0">Why: the write happens in the same request/transaction
+        path as the data access itself, whether the caller is a human via the
+        browser, the agent via the internal service channel, or a script via
+        the confidential client's Bearer token. There's no window where a
+        data access could succeed but the audit write gets skipped because the
+        agent's graph run failed partway through afterward.</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">What gets recorded</div>
+    <div class="card-body">
+        <table class="table table-sm">
+            <tr><th>Column</th><th>Purpose</th></tr>
+            <tr><td>actor_staff_id / actor_role</td><td>Who did it, resolved by <code>auth/middleware.py</code> — never self-reported by the caller</td></tr>
+            <tr><td>action</td><td>READ / CREATE / UPDATE / DELETE</td></tr>
+            <tr><td>resource_type / resource_id</td><td>What was touched</td></tr>
+            <tr><td>intent_text</td><td>Free-text context — for agent calls this can carry the natural-language reason from the chat turn</td></tr>
+            <tr><td>phi_accessed</td><td>Explicit flag set per-endpoint; Finance/Management/Inventory routes set this False because those payloads are already de-identified</td></tr>
+        </table>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Who reads it back</div>
+    <div class="card-body">
+        <p class="mb-0">The Legal/Compliance role (Phase 2) queries this
+        exact table through <code>GET /api/audit-log</code> — the same audit
+        trail the system writes is also a first-class chatbot skill: "who
+        accessed patient X's chart in the last 30 days" becomes a normal tool
+        call once the Legal subgraph is wired in.</p>
+    </div>
+</div>
+{% endblock %}

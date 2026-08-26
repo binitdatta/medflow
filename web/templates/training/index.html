@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Training — MedFlow{% endblock %}
+{% block content %}
+<div class="training-hero mb-4">
+    <h2>MedFlow Training</h2>
+    <p class="mb-0">A YouTube-ready walkthrough of how this HIPAA/HL7-pattern
+    agentic AI POC is put together — for interns and students learning
+    enterprise full-stack + agentic AI patterns.</p>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-diagram-3"></i> Architecture Walkthrough</div>
+            <div class="card-body">
+                <p>Flask + SQLAlchemy + MySQL 8, LangChain/LangGraph, and how
+                the agent calls its own REST API instead of touching the
+                database directly.</p>
+                <a class="btn btn-outline-primary" href="{{ url_for('web.training_architecture') }}">Open</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-shield-check"></i> RBAC in LangGraph</div>
+            <div class="card-body">
+                <p>Why role comes from Keycloak, never from the chat text —
+                and how the same rule is enforced twice: once for humans,
+                once for the agent.</p>
+                <a class="btn btn-outline-primary" href="{{ url_for('web.training_rbac') }}">Open</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-journal-text"></i> Audit Logging Pattern</div>
+            <div class="card-body">
+                <p>Every PHI-touching call writes an audit_log row in the
+                same request — see why that beats a separate post-hoc
+                logging step.</p>
+                <a class="btn btn-outline-primary" href="{{ url_for('web.training_audit') }}">Open</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-file-earmark-medical"></i> HL7 / FHIR Resource Mapping</div>
+            <div class="card-body">
+                <p>How the MySQL schema maps to FHIR resource shapes
+                (Patient, Encounter, MedicationRequest) without running a
+                full HL7 v2 interface engine.</p>
+                <a class="btn btn-outline-primary" href="{{ url_for('web.training_hl7_fhir') }}">Open</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

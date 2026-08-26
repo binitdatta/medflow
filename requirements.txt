@@ -1,0 +1,13 @@
+Flask==3.1.0
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.36
+PyMySQL==1.1.1
+cryptography==43.0.3
+python-dotenv==1.0.1
+requests==2.32.3
+PyJWT==2.9.0
+langchain==0.3.14
+langchain-core>=0.3.30,<0.4.0
+langgraph==0.2.60
+langchain-anthropic==0.3.3
+gunicorn==23.0.0

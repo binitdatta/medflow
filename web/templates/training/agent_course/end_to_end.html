@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}15. End-to-End Execution — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:100%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>15. End-to-End Execution</h1><p>Bring every component together in one complete request sequence.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="e2e-timeline"><div><span>1</span><p>Browser sends authenticated chat message</p></div><div><span>2</span><p>Flask identity middleware establishes caller context</p></div><div><span>3</span><p>Chat API loads prior conversation turns</p></div><div><span>4</span><p>run_agent fixes role and identity for this execution</p></div><div><span>5</span><p>ROLE_CONFIG selects prompt and toolset</p></div><div><span>6</span><p>Compiled LangGraph starts at agent node</p></div><div><span>7</span><p>Anthropic model returns answer or tool calls</p></div><div><span>8</span><p>Tools call secured Flask REST endpoints</p></div><div><span>9</span><p>Role decorators validate action independently</p></div><div><span>10</span><p>SQLAlchemy reads or writes MySQL data</p></div><div><span>11</span><p>ToolMessage returns API result to the graph</p></div><div><span>12</span><p>Agent node synthesizes the final response</p></div><div><span>13</span><p>Chat API persists assistant message</p></div><div><span>14</span><p>Browser receives response and tools-used metadata</p></div></div><div class="final-architecture mt-4"><div>Keycloak</div><i></i><div>Flask UI/API</div><i></i><div>LangGraph</div><i></i><div>LangChain Tools</div><i></i><div>REST RBAC</div><i></i><div>SQLAlchemy</div><i></i><div>MySQL</div></div><div class="callout"><i class="bi bi-mortarboard"></i><div><strong>The central architectural lesson</strong><p>The LLM provides language reasoning. LangGraph controls the iterative workflow. LangChain defines model and tool interfaces. Flask APIs retain security and business authority. MySQL remains the system of record.</p></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_security_observability') }}"><i class="bi bi-arrow-left"></i> 14. Security, Audit and Observability</a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}2. Project Structure — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:13%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>2. Project Structure</h1><p>Understand the architectural responsibility of each top-level package.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="folder-explorer mb-4"><div class="folder-root"><i class="bi bi-folder2-open"></i> medflow/</div><div class="folder-grid">
+<div><b>app.py</b><small>Composition root</small></div><div><b>agent/</b><small>Graph orchestration and tools</small></div><div><b>api/</b><small>Secured REST resources</small></div><div><b>auth/</b><small>Identity and role enforcement</small></div><div><b>models/</b><small>SQLAlchemy domain models</small></div><div><b>services/</b><small>Logging and shared services</small></div><div><b>web/</b><small>Jinja UI routes and templates</small></div><div><b>keycloak/</b><small>IAM integration support</small></div><div><b>db/</b><small>Database assets</small></div><div><b>static/</b><small>CSS, JavaScript and images</small></div></div></div>
+<div class="architecture-layers"><div><strong>Presentation</strong><span>web + static</span></div><div><strong>Application</strong><span>app + api + services</span></div><div><strong>Agentic orchestration</strong><span>agent + subgraphs</span></div><div><strong>Security</strong><span>auth + keycloak</span></div><div><strong>Persistence</strong><span>models + db + MySQL</span></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_app_bootstrap') }}"><i class="bi bi-arrow-left"></i> 1. app.py: Application Bootstrap</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_agent_folder') }}">3. The agent Package <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,1967 @@
+{% extends "base.html" %}
+
+{% block title %}5. LangGraph ReAct Loop — MedFlow Training{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+
+<div class="agent-course" data-course-page>
+
+  <!-- Course Progress -->
+  <div class="course-progress mb-3">
+    <div style="width:33%"></div>
+  </div>
+
+  <!-- Hero -->
+  <section class="course-hero mb-4">
+    <div>
+      <span class="course-kicker">MedFlow Agent Architecture Training LG</span>
+      <h1>5. LangGraph: Stateful Business Workflows and ReAct Loops</h1>
+      <p>
+        Learn how LangGraph connects ordinary Python functions as executable nodes,
+        routes execution through fixed or conditional edges, carries shared state,
+        supports retries and human approval, and implements bounded agentic loops.
+      </p>
+    </div>
+
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}">
+      <i class="bi bi-grid"></i> Course map
+    </a>
+  </section>
+
+<section class="mb-5">
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+          <h2 class="h3 mb-1">
+            <i class="bi bi-diagram-3 me-2"></i>
+            LangGraph in Action
+          </h2>
+
+          <p class="text-muted mb-0">
+            Click the image to open a large interactive view.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          data-bs-toggle="modal"
+          data-bs-target="#langgraphImageModal">
+          <i class="bi bi-arrows-fullscreen me-1"></i>
+          Open Large View
+        </button>
+      </div>
+
+      <figure class="mb-0 text-center">
+        <img
+          id="langgraphPreviewImage"
+          src="{{ url_for('static', filename='images/langgraph.png') }}"
+          alt="LangGraph workflow showing state moving between nodes"
+          class="img-fluid rounded border shadow-sm langgraph-preview-image"
+          loading="lazy"
+          role="button"
+          tabindex="0"
+          data-bs-toggle="modal"
+          data-bs-target="#langgraphImageModal">
+
+        <figcaption class="text-muted small mt-3">
+          Click the diagram to open it in a large zoomable window.
+        </figcaption>
+      </figure>
+
+    </div>
+  </div>
+</section>
+  <!-- Learning Objectives -->
+  <section class="mb-4">
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h2 class="h4 mb-3">
+          <i class="bi bi-bullseye me-2"></i>Learning objectives
+        </h2>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="p-3 border rounded h-100">
+              <strong>Understand the execution model</strong>
+              <p class="mb-0 mt-2">
+                See how typed state, Python functions, nodes, edges, conditional
+                routing and cycles work together.
+              </p>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="p-3 border rounded h-100">
+              <strong>Apply LangGraph to enterprise workflows</strong>
+              <p class="mb-0 mt-2">
+                Model authorization, business-policy enforcement, human approval,
+                API execution, retries, checkpointing and audit history.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- PART 1: TECHNICAL ENTERPRISE WORKFLOW EXAMPLE              -->
+  <!-- ========================================================= -->
+
+  <section class="mb-5">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span class="badge text-bg-primary fs-6">Part 1</span>
+      <div>
+        <h2 class="h3 mb-1">Technical Example: Enterprise Order Cancellation</h2>
+        <p class="text-muted mb-0">
+          LangGraph as an executable state machine for a controlled business process.
+        </p>
+      </div>
+    </div>
+
+    <div class="callout mb-4">
+      <i class="bi bi-diagram-3"></i>
+      <div>
+        <strong>Core idea</strong>
+        <p>
+          LangGraph is not limited to conversational agents. It can orchestrate
+          deterministic Python code, REST APIs, policy checks, databases, human
+          approvals, retries and LLM reasoning inside one explicit execution graph.
+        </p>
+      </div>
+    </div>
+
+    <!-- Business Scenario -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-briefcase me-2"></i>Business scenario
+        </h3>
+
+        <p>A user submits the following request:</p>
+
+        <blockquote class="blockquote border-start border-4 ps-3 my-3">
+          <p class="mb-0">
+            “Cancel order 1001 because the customer entered the wrong address.”
+          </p>
+        </blockquote>
+
+        <p>The application must:</p>
+
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <ol class="mb-0">
+              <li>Authenticate and authorize the user.</li>
+              <li>Load the order from a database or REST API.</li>
+              <li>Check tenant boundaries and cancellation policy.</li>
+              <li>Request approval for high-value orders.</li>
+            </ol>
+          </div>
+
+          <div class="col-lg-6">
+            <ol start="5" class="mb-0">
+              <li>Call the downstream Order API.</li>
+              <li>Retry transient failures.</li>
+              <li>Record an audit trail.</li>
+              <li>Return a final business result.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workflow Visual -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4 mb-3">
+          <i class="bi bi-signpost-split me-2"></i>Workflow topology
+        </h3>
+
+        <div class="langgraph-visual">
+          <div class="node start">START</div>
+          <div class="edge down"></div>
+
+          <div class="node agent pulse">
+            authorize_user
+            <br>
+            <small>role and permission check</small>
+          </div>
+
+          <div class="decision">authorized?</div>
+
+          <div class="branch">
+            <div>
+              <span>Yes</span>
+              <div class="node tools">
+                load_order
+                <br>
+                <small>database or REST lookup</small>
+              </div>
+            </div>
+
+            <div>
+              <span>No</span>
+              <div class="node end">
+                reject_request
+                <br>
+                <small>END</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="return-arrow">↓</div>
+
+          <div class="node agent">
+            check_policy
+            <br>
+            <small>tenant, status and value rules</small>
+          </div>
+
+          <div class="decision">next action?</div>
+
+          <div class="branch">
+            <div>
+              <span>Allowed</span>
+              <div class="node tools">
+                cancel_order
+                <br>
+                <small>invoke Order API</small>
+              </div>
+            </div>
+
+            <div>
+              <span>High value</span>
+              <div class="node agent">
+                human_review
+                <br>
+                <small>approval required</small>
+              </div>
+            </div>
+
+            <div>
+              <span>Denied</span>
+              <div class="node end">
+                policy_denied
+                <br>
+                <small>END</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="return-arrow">↺ retry transient errors</div>
+
+          <div class="node end">
+            success or retry_exhausted
+            <br>
+            <small>END</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Execution Path -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4 mb-3">
+          <i class="bi bi-play-circle me-2"></i>Expected execution path
+        </h3>
+
+        <pre class="code-panel"><code>authorize_user
+    ↓
+load_order
+    ↓
+check_policy
+    ↓
+human_review
+    ↓
+cancel_order
+    ↓
+cancel_order       ← retry loop after HTTP 503
+    ↓
+success
+    ↓
+END</code></pre>
+      </div>
+    </div>
+
+    <!-- State Explanation -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-boxes me-2"></i>1. Define the shared graph state
+        </h3>
+
+        <p>
+          Every node receives the current state and returns a partial state update.
+          LangGraph merges that update into the workflow state.
+        </p>
+
+        <div class="accordion code-accordion" id="acc-state">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button
+                class="accordion-button collapsed"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#code-state"
+                aria-expanded="false"
+                aria-controls="code-state">
+                <i class="bi bi-code-slash me-2"></i>
+                TypedDict state definition
+              </button>
+            </h2>
+
+            <div
+              id="code-state"
+              class="accordion-collapse collapse"
+              data-bs-parent="#acc-state">
+              <div class="accordion-body p-0">
+                <pre class="code-panel"><code>from typing import Literal, TypedDict
+
+class CancellationState(TypedDict, total=False):
+    # Request context
+    order_id: str
+    tenant_id: str
+    user_id: str
+    user_roles: list[str]
+    cancellation_reason: str
+
+    # Data loaded during execution
+    order: dict
+
+    # Authorization and policy results
+    authorized: bool
+    policy_allowed: bool
+    requires_human_review: bool
+    human_decision: Literal[
+        "APPROVED",
+        "REJECTED",
+        "PENDING"
+    ]
+
+    # Execution status
+    cancellation_completed: bool
+    retry_count: int
+    max_retries: int
+    error_type: str | None
+    error_message: str | None
+
+    # Final output and audit history
+    result: str
+    audit_log: list[str]</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-info mt-3 mb-0">
+          <strong>Technical contract:</strong>
+          a LangGraph node usually behaves like
+          <code>State -&gt; Partial State</code>.
+        </div>
+      </div>
+    </div>
+
+    <!-- Node Examples -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-cpu me-2"></i>2. Implement nodes as ordinary Python functions
+        </h3>
+
+        <p>
+          A node can call a database, REST API, Keycloak, a policy service,
+          RabbitMQ, an LLM, a vector database or another internal service.
+        </p>
+
+        <div class="accordion code-accordion" id="acc-nodes">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button
+                class="accordion-button collapsed"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#code-nodes"
+                aria-expanded="false"
+                aria-controls="code-nodes">
+                <i class="bi bi-code-slash me-2"></i>
+                Authorization, order lookup and policy nodes
+              </button>
+            </h2>
+
+            <div
+              id="code-nodes"
+              class="accordion-collapse collapse"
+              data-bs-parent="#acc-nodes">
+              <div class="accordion-body p-0">
+                <pre class="code-panel"><code>def authorize_user(state: CancellationState) -&gt; dict:
+    roles = state.get("user_roles", [])
+
+    authorized = (
+        "order_cancel" in roles
+        or "order_admin" in roles
+    )
+
+    return {
+        "authorized": authorized
+    }
+
+
+def load_order(state: CancellationState) -&gt; dict:
+    order = ORDERS_DB.get(state["order_id"])
+
+    return {
+        "order": order
+    }
+
+
+def check_cancellation_policy(
+    state: CancellationState
+) -&gt; dict:
+
+    order = state["order"]
+
+    tenant_matches = (
+        order["tenant_id"] == state["tenant_id"]
+    )
+
+    status_allowed = order["status"] in {
+        "CREATED",
+        "PAID",
+        "FULFILLING"
+    }
+
+    policy_allowed = (
+        tenant_matches and status_allowed
+    )
+
+    requires_human_review = (
+        policy_allowed
+        and order["amount"] &gt;= 5000
+    )
+
+    return {
+        "policy_allowed": policy_allowed,
+        "requires_human_review": requires_human_review
+    }</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-secondary mt-3 mb-0">
+          LangGraph does not replace the Python functions. It schedules and
+          connects them according to the graph definition.
+        </div>
+      </div>
+    </div>
+
+    <!-- Conditional Routing -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-shuffle me-2"></i>3. Route execution with conditional edges
+        </h3>
+
+        <p>
+          Routing functions inspect the updated state and return the name of the
+          next node.
+        </p>
+
+        <div class="accordion code-accordion" id="acc-routing">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button
+                class="accordion-button collapsed"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#code-routing"
+                aria-expanded="false"
+                aria-controls="code-routing">
+                <i class="bi bi-code-slash me-2"></i>
+                Policy routing function
+              </button>
+            </h2>
+
+            <div
+              id="code-routing"
+              class="accordion-collapse collapse"
+              data-bs-parent="#acc-routing">
+              <div class="accordion-body p-0">
+                <pre class="code-panel"><code>def route_after_policy(
+    state: CancellationState
+) -&gt; Literal[
+    "human_review",
+    "cancel_order",
+    "policy_denied"
+]:
+
+    if not state["policy_allowed"]:
+        return "policy_denied"
+
+    if state["requires_human_review"]:
+        return "human_review"
+
+    return "cancel_order"</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="mt-3 mb-0">
+          The workflow topology is declared explicitly instead of being hidden
+          inside an LLM prompt.
+        </p>
+      </div>
+    </div>
+
+    <!-- Retry Cycle -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-arrow-repeat me-2"></i>4. Implement a real graph cycle for retries
+        </h3>
+
+        <div class="accordion code-accordion" id="acc-retry">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button
+                class="accordion-button collapsed"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#code-retry"
+                aria-expanded="false"
+                aria-controls="code-retry">
+                <i class="bi bi-code-slash me-2"></i>
+                Retry routing logic
+              </button>
+            </h2>
+
+            <div
+              id="code-retry"
+              class="accordion-collapse collapse"
+              data-bs-parent="#acc-retry">
+              <div class="accordion-body p-0">
+                <pre class="code-panel"><code>def route_after_cancellation(
+    state: CancellationState
+) -&gt; Literal[
+    "success",
+    "cancel_order",
+    "retry_exhausted"
+]:
+
+    if state["cancellation_completed"]:
+        return "success"
+
+    retry_count = state.get("retry_count", 0)
+    max_retries = state.get("max_retries", 3)
+
+    if (
+        state.get("error_type")
+        == "TRANSIENT_API_ERROR"
+        and retry_count &lt; max_retries
+    ):
+        return "cancel_order"
+
+    return "retry_exhausted"</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <pre class="code-panel mt-3"><code>cancel_order
+     |
+     +---- success --------------------&gt; success
+     |
+     +---- transient failure ----------+
+     |                                  |
+     +&lt;---------------------------------+
+                    retry
+     |
+     +---- retry limit reached --------&gt; retry_exhausted</code></pre>
+      </div>
+    </div>
+
+    <!-- Graph Definition -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-diagram-2 me-2"></i>5. Build and compile the graph
+        </h3>
+
+        <div class="accordion code-accordion" id="acc-business-graph">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button
+                class="accordion-button collapsed"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#code-business-graph"
+                aria-expanded="false"
+                aria-controls="code-business-graph">
+                <i class="bi bi-code-slash me-2"></i>
+                Complete graph wiring
+              </button>
+            </h2>
+
+            <div
+              id="code-business-graph"
+              class="accordion-collapse collapse"
+              data-bs-parent="#acc-business-graph">
+              <div class="accordion-body p-0">
+                <pre class="code-panel"><code>from langgraph.graph import END, START, StateGraph
+from langgraph.checkpoint.memory import MemorySaver
+
+builder = StateGraph(CancellationState)
+
+builder.add_node("authorize_user", authorize_user)
+builder.add_node(
+    "reject_unauthorized",
+    reject_unauthorized_request
+)
+builder.add_node("load_order", load_order)
+builder.add_node("order_not_found", order_not_found)
+builder.add_node(
+    "check_policy",
+    check_cancellation_policy
+)
+builder.add_node("policy_denied", policy_denied)
+builder.add_node("human_review", human_review)
+builder.add_node("human_rejection", human_rejection)
+builder.add_node("cancel_order", cancel_order)
+builder.add_node("retry_exhausted", retry_exhausted)
+builder.add_node("success", create_success_response)
+
+builder.add_edge(START, "authorize_user")
+
+builder.add_conditional_edges(
+    "authorize_user",
+    route_after_authorization
+)
+
+builder.add_conditional_edges(
+    "load_order",
+    route_after_order_lookup
+)
+
+builder.add_conditional_edges(
+    "check_policy",
+    route_after_policy
+)
+
+builder.add_conditional_edges(
+    "human_review",
+    route_after_human_review
+)
+
+builder.add_conditional_edges(
+    "cancel_order",
+    route_after_cancellation
+)
+
+builder.add_edge("reject_unauthorized", END)
+builder.add_edge("order_not_found", END)
+builder.add_edge("policy_denied", END)
+builder.add_edge("human_rejection", END)
+builder.add_edge("retry_exhausted", END)
+builder.add_edge("success", END)
+
+checkpointer = MemorySaver()
+
+graph = builder.compile(
+    checkpointer=checkpointer
+)</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Invocation -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-terminal me-2"></i>6. Invoke the graph
+        </h3>
+
+        <div class="accordion code-accordion" id="acc-invoke">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button
+                class="accordion-button collapsed"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#code-invoke"
+                aria-expanded="false"
+                aria-controls="code-invoke">
+                <i class="bi bi-code-slash me-2"></i>
+                Initial state and thread configuration
+              </button>
+            </h2>
+
+            <div
+              id="code-invoke"
+              class="accordion-collapse collapse"
+              data-bs-parent="#acc-invoke">
+              <div class="accordion-body p-0">
+                <pre class="code-panel"><code>initial_state: CancellationState = {
+    "order_id": "1001",
+    "tenant_id": "tenant-01",
+    "user_id": "binit",
+    "user_roles": [
+        "order_read",
+        "order_cancel"
+    ],
+    "cancellation_reason":
+        "Customer entered an incorrect address.",
+    "retry_count": 0,
+    "max_retries": 3,
+    "audit_log": []
+}
+
+config = {
+    "configurable": {
+        "thread_id": "cancel-order-1001"
+    }
+}
+
+final_state = graph.invoke(
+    initial_state,
+    config=config
+)</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-warning mt-3 mb-0">
+          <strong>Checkpointing:</strong>
+          the <code>thread_id</code> identifies one workflow execution. A
+          persistent production checkpointer can allow long-running workflows to
+          resume after restarts, failures or human-review pauses.
+        </div>
+      </div>
+    </div>
+
+    <!-- Expected Output -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-card-checklist me-2"></i>Expected result and audit history
+        </h3>
+
+        <pre class="code-panel"><code>RESULT
+Order 1001 was cancelled successfully.
+Reason: Customer entered an incorrect delivery address.
+
+AUDIT LOG
+- Authorization checked for user binit: authorized=True
+- Order lookup completed for order 1001
+- Policy evaluation: high-value cancellation requires approval
+- Human review completed for $7500.00: APPROVED
+- Order API attempt 1 failed with HTTP 503
+- Order API attempt 2 succeeded
+- Order status changed to CANCELLED
+- Cancellation workflow completed successfully</code></pre>
+      </div>
+    </div>
+
+    <!-- LLM Placement -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-stars me-2"></i>Where the LLM belongs
+        </h3>
+
+        <pre class="code-panel"><code>User request
+     |
+     v
+LLM intent extraction
+     |
+     v
+Structured request
+{
+  "action": "CANCEL_ORDER",
+  "order_id": "1001",
+  "reason": "Incorrect address"
+}
+     |
+     v
+LangGraph deterministic workflow
+     |
+     +-- authorization
+     +-- tenant validation
+     +-- policy enforcement
+     +-- human approval
+     +-- API execution
+     +-- retry
+     +-- audit</code></pre>
+
+        <div class="callout mt-3">
+          <i class="bi bi-shield-check"></i>
+          <div>
+            <strong>Enterprise design principle</strong>
+            <p>
+              Use the LLM for interpretation, extraction and reasoning. Use graph
+              nodes and enterprise services for authorization, policy enforcement,
+              execution, recovery and auditability.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- When to Use -->
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-check2-square me-2"></i>When LangGraph adds value
+        </h3>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <h4 class="h6 text-uppercase text-muted">Good fit</h4>
+            <ul class="mb-0">
+              <li>Multiple branches and decision points</li>
+              <li>Cycles and retry behavior</li>
+              <li>Long-running execution</li>
+              <li>Human-in-the-loop approval</li>
+              <li>Checkpoint recovery</li>
+              <li>Multiple tools or agents</li>
+              <li>Workflow visualization and state inspection</li>
+            </ul>
+          </div>
+
+          <div class="col-md-6">
+            <h4 class="h6 text-uppercase text-muted">Possibly unnecessary</h4>
+            <ul class="mb-0">
+              <li>One prompt followed by one response</li>
+              <li>A simple synchronous three-step function</li>
+              <li>No branching, persistence or retries</li>
+              <li>No need for workflow observability</li>
+              <li>No need for human interruption or resumption</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="my-5">
+
+  <!-- ========================================================= -->
+  <!-- PART 2: GRAPH THEORY AND GPS ANALOGY                      -->
+  <!-- ========================================================= -->
+
+  <section class="mb-5">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span class="badge text-bg-success fs-6">Part 2</span>
+      <div>
+        <h2 class="h3 mb-1">LangGraph as a GPS-Controlled Execution Map</h2>
+        <p class="text-muted mb-0">
+          A graph-theory interpretation of nodes, edges, state, routing and cycles.
+        </p>
+      </div>
+    </div>
+
+    <div class="callout mb-4">
+      <i class="bi bi-geo-alt"></i>
+      <div>
+        <strong>Your GPS analogy is accurate</strong>
+        <p>
+          LangGraph defines the permitted locations and routes of a workflow.
+          Runtime state determines which permitted route is selected next.
+        </p>
+      </div>
+    </div>
+
+    <!-- Precise Definition -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-book me-2"></i>Precise technical definition
+        </h3>
+
+        <p class="lead mb-3">
+          LangGraph is a stateful workflow and agent-orchestration library that
+          uses directed-graph concepts to connect executable Python processing
+          nodes through fixed and conditional transitions.
+        </p>
+
+        <p class="mb-0">
+          It uses graph theory as an execution model, but it is not primarily a
+          general-purpose graph-analysis library such as NetworkX.
+        </p>
+      </div>
+    </div>
+
+    <!-- GPS Mapping Table -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4 mb-3">
+          <i class="bi bi-map me-2"></i>GPS-to-LangGraph mapping
+        </h3>
+
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th>GPS concept</th>
+                <th>LangGraph concept</th>
+                <th>Technical meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Current location</td>
+                <td>Current node</td>
+                <td>The processing function currently executing</td>
+              </tr>
+              <tr>
+                <td>Destination</td>
+                <td>Workflow objective or END</td>
+                <td>The successful or terminal workflow state</td>
+              </tr>
+              <tr>
+                <td>Road</td>
+                <td>Edge</td>
+                <td>A permitted transition between nodes</td>
+              </tr>
+              <tr>
+                <td>Intersection decision</td>
+                <td>Conditional edge</td>
+                <td>A router selects the next node using state</td>
+              </tr>
+              <tr>
+                <td>Vehicle and trip data</td>
+                <td>Graph state</td>
+                <td>Shared data carried across the execution</td>
+              </tr>
+              <tr>
+                <td>Road closure</td>
+                <td>Tool or API failure</td>
+                <td>An execution condition requiring another route</td>
+              </tr>
+              <tr>
+                <td>Recalculate route</td>
+                <td>Retry or alternate branch</td>
+                <td>The graph loops or chooses another node</td>
+              </tr>
+              <tr>
+                <td>Planned stop</td>
+                <td>Human interrupt</td>
+                <td>Execution pauses until an approval or input arrives</td>
+              </tr>
+              <tr>
+                <td>Saved journey</td>
+                <td>Checkpoint</td>
+                <td>Persisted workflow state for recovery or resumption</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Basic Graph -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-node-plus me-2"></i>Basic business workflow graph
+        </h3>
+
+        <pre class="code-panel"><code>START
+   |
+   v
+Understand Request
+   |
+   v
+Load Order
+   |
+   v
+Check Policy
+  / \
+ /   \
+Allowed  Denied
+  |       |
+  v       v
+Cancel   Return Error
+  |
+  v
+END</code></pre>
+      </div>
+    </div>
+
+    <!-- Nodes -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-box me-2"></i>Nodes are processing points
+        </h3>
+
+        <p>
+          Nodes are usually ordinary Python functions. LangGraph registers and
+          invokes those functions according to the graph definition.
+        </p>
+
+        <pre class="code-panel"><code>def load_order(state):
+    order = order_api.get_order(
+        state["order_id"]
+    )
+
+    return {
+        "order": order
+    }
+
+builder.add_node(
+    "load_order",
+    load_order
+)</code></pre>
+
+        <p class="mb-0">
+          The function remains ordinary Python. Registering it as a node makes it
+          part of LangGraph’s controlled execution topology.
+        </p>
+      </div>
+    </div>
+
+    <!-- Edges -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-arrow-right me-2"></i>Edges are routing instructions
+        </h3>
+
+        <p>
+          An edge is not another processing function. It declares where execution
+          is allowed to go after a node completes.
+        </p>
+
+        <pre class="code-panel"><code>builder.add_edge(
+    "load_order",
+    "check_policy"
+)</code></pre>
+
+        <pre class="code-panel mt-3"><code>Node A
+  |
+  |  edge: routing instruction
+  v
+Node B</code></pre>
+
+        <div class="alert alert-info mb-0">
+          The receiving point is the next node. The edge is the connection that
+          directs execution to it.
+        </div>
+      </div>
+    </div>
+
+    <!-- State Progression -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-database me-2"></i>State is what travels through the route
+        </h3>
+
+        <p>Initial state:</p>
+
+        <pre class="code-panel"><code>{
+    "order_id": "1001"
+}</code></pre>
+
+        <p class="mt-3">After <code>load_order</code>:</p>
+
+        <pre class="code-panel"><code>{
+    "order_id": "1001",
+    "order": {
+        "status": "PAID",
+        "amount": 500
+    }
+}</code></pre>
+
+        <p class="mt-3">After <code>check_policy</code>:</p>
+
+        <pre class="code-panel"><code>{
+    "order_id": "1001",
+    "order": {
+        "status": "PAID",
+        "amount": 500
+    },
+    "policy_allowed": true
+}</code></pre>
+
+        <p class="mb-0">
+          This resembles a GPS carrying current location, destination, route
+          history, traffic conditions and remaining distance.
+        </p>
+      </div>
+    </div>
+
+    <!-- Conditional Edges -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-sign-turn-right me-2"></i>Conditional edges behave like GPS route selection
+        </h3>
+
+        <p>A fixed edge always uses the same route:</p>
+
+        <pre class="code-panel"><code>builder.add_edge(
+    "load_order",
+    "check_policy"
+)</code></pre>
+
+        <p class="mt-3">
+          A conditional edge examines the current state:
+        </p>
+
+        <pre class="code-panel"><code>def select_next_node(state):
+    if state["policy_allowed"]:
+        return "cancel_order"
+
+    return "reject_request"
+
+
+builder.add_conditional_edges(
+    "check_policy",
+    select_next_node
+)</code></pre>
+
+        <div class="row g-3 mt-2">
+          <div class="col-md-6">
+            <div class="p-3 border rounded h-100">
+              <strong>GPS logic</strong>
+              <pre class="code-panel mt-2 mb-0"><code>if road_is_open:
+    continue_route()
+else:
+    recalculate_route()</code></pre>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="p-3 border rounded h-100">
+              <strong>LangGraph logic</strong>
+              <pre class="code-panel mt-2 mb-0"><code>if policy_allowed:
+    cancel_order()
+else:
+    reject_request()</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Graph Theory -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-bezier2 me-2"></i>Is LangGraph implementing graph theory?
+        </h3>
+
+        <p>
+          Broadly, yes. It uses directed graphs, nodes, edges, branching and cycles.
+          However, its purpose differs from a graph-analysis library.
+        </p>
+
+        <div class="table-responsive">
+          <table class="table table-bordered align-middle mb-0">
+            <thead>
+              <tr>
+                <th>General graph library</th>
+                <th>LangGraph</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Shortest-path algorithms</td>
+                <td>Execution routing</td>
+              </tr>
+              <tr>
+                <td>Centrality calculations</td>
+                <td>Stateful processing nodes</td>
+              </tr>
+              <tr>
+                <td>Connected components</td>
+                <td>Conditional business branches</td>
+              </tr>
+              <tr>
+                <td>Community detection</td>
+                <td>Retries and agent loops</td>
+              </tr>
+              <tr>
+                <td>Graph data analysis</td>
+                <td>Workflow execution and orchestration</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Business vs AI Workflows -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-intersect me-2"></i>Business workflow and AI reasoning workflow
+        </h3>
+
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <h4 class="h5">Business process</h4>
+            <pre class="code-panel"><code>Receive cancellation request
+        ↓
+Validate permissions
+        ↓
+Load order
+        ↓
+Check policy
+        ↓
+Obtain approval
+        ↓
+Cancel order
+        ↓
+Record audit event</code></pre>
+          </div>
+
+          <div class="col-lg-6">
+            <h4 class="h5">Agent reasoning process</h4>
+            <pre class="code-panel"><code>Receive question
+        ↓
+Classify intent
+        ↓
+Plan actions
+        ↓
+Select tool
+        ↓
+Execute tool
+        ↓
+Evaluate result
+       / \
+Enough?  Not enough?
+  |          |
+  v          +--- select another tool
+Answer</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ReAct Loop -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-arrow-repeat me-2"></i>LangGraph ReAct loop
+        </h3>
+
+        <p>
+          In a ReAct-style graph, the model reasons inside the agent node. If it
+          emits tool calls, execution moves to the tools node. Tool results are
+          added to state, and execution returns to the agent node.
+        </p>
+
+        <div class="langgraph-visual mb-4">
+          <div class="node start">START</div>
+          <div class="edge down"></div>
+
+          <div class="node agent pulse">
+            agent node
+            <br>
+            <small>LLM reasons and decides</small>
+          </div>
+
+          <div class="decision">tool calls?</div>
+
+          <div class="branch">
+            <div>
+              <span>Yes</span>
+              <div class="node tools">
+                tools node
+                <br>
+                <small>invoke Python functions</small>
+              </div>
+              <div class="return-arrow">↺ return tool results to agent</div>
+            </div>
+
+            <div>
+              <span>No</span>
+              <div class="node end">END</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion code-accordion" id="acc-react">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button
+                class="accordion-button collapsed"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#code-react"
+                aria-expanded="false"
+                aria-controls="code-react">
+                <i class="bi bi-code-slash me-2"></i>
+                The ReAct graph definition
+              </button>
+            </h2>
+
+            <div
+              id="code-react"
+              class="accordion-collapse collapse"
+              data-bs-parent="#acc-react">
+              <div class="accordion-body p-0">
+                <pre class="code-panel"><code>graph = StateGraph(AgentState)
+
+graph.add_node(
+    "agent",
+    agent_node
+)
+
+graph.add_node(
+    "tools",
+    tools_node
+)
+
+graph.set_entry_point(
+    "agent"
+)
+
+graph.add_conditional_edges(
+    "agent",
+    should_continue,
+    {
+        "tools": "tools",
+        "end": END
+    }
+)
+
+graph.add_edge(
+    "tools",
+    "agent"
+)
+
+return graph.compile()</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout mt-3">
+          <i class="bi bi-arrow-repeat"></i>
+          <div>
+            <strong>Why this is agentic</strong>
+            <p>
+              The model may answer immediately, invoke one tool, or invoke multiple
+              tools across repeated agent → tools → agent iterations. The graph
+              supplies a bounded and inspectable control loop.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Enterprise Control -->
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h3 class="h4">
+          <i class="bi bi-shield-lock me-2"></i>Why the map matters in enterprise AI
+        </h3>
+
+        <pre class="code-panel"><code>LLM request:
+"Cancel order 1001"
+
+Graph-enforced route:
+authenticate
+    → authorize
+    → validate tenant
+    → check policy
+    → request approval
+    → cancel order
+    → write audit record
+    → END</code></pre>
+
+        <p>
+          The developer defines the legitimate destinations and transitions. The
+          runtime state selects among those legitimate paths.
+        </p>
+
+        <div class="alert alert-success mb-0">
+          <strong>Most important takeaway:</strong>
+          the LLM can help decide what the user means, but the graph and enterprise
+          services control what actions are allowed and how they must be executed.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final Summary -->
+  <section class="mb-4">
+    <div class="card shadow-sm border-primary">
+      <div class="card-body">
+        <h2 class="h4">
+          <i class="bi bi-lightbulb me-2"></i>Technical summary
+        </h2>
+
+        <pre class="code-panel"><code>LangGraph =
+    typed shared state
+    + ordinary Python functions as nodes
+    + fixed and conditional edges
+    + cycles and retries
+    + checkpoint persistence
+    + human intervention
+    + LLM reasoning where appropriate</code></pre>
+
+        <p class="mb-0">
+          In practical terms, LangGraph is the executable route map for a
+          stateful business or agentic workflow.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lesson Navigation -->
+  <div class="lesson-nav mt-5">
+    <a
+      class="btn btn-outline-primary"
+      href="{{ url_for('web.training_agent_graph_wiring') }}">
+      <i class="bi bi-arrow-left"></i>
+      4. graph.py: Role Wiring
+    </a>
+
+    <a
+      class="btn btn-primary"
+      href="{{ url_for('web.training_agent_context_identity') }}">
+      6. Trusted Identity Context
+      <i class="bi bi-arrow-right"></i>
+    </a>
+  </div>
+</div>
+
+    <div
+  class="modal fade"
+  id="langgraphImageModal"
+  tabindex="-1"
+  aria-labelledby="langgraphImageModalLabel"
+  aria-hidden="true">
+
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title h5 mb-1" id="langgraphImageModalLabel">
+            LangGraph State Transition Workflow
+          </h2>
+
+          <p class="text-muted small mb-0">
+            Click to zoom in, Shift-click to zoom out, or drag while zoomed.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Close">
+        </button>
+      </div>
+
+      <div class="modal-body p-0">
+        <div
+          id="langgraphModalZoomContainer"
+          class="langgraph-modal-zoom-container">
+
+          <img
+            id="langgraphModalZoomImage"
+            src="{{ url_for('static', filename='images/langgraph.png') }}"
+            alt="Detailed LangGraph workflow showing state moving through processing nodes"
+            draggable="false">
+        </div>
+      </div>
+
+      <div class="modal-footer justify-content-between">
+
+        <div class="text-muted small">
+          Zoom:
+          <span id="langgraphModalZoomLevel">100%</span>
+        </div>
+
+        <div class="btn-group" role="group" aria-label="Image zoom controls">
+
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            id="langgraphModalZoomOutBtn">
+            <i class="bi bi-zoom-out"></i>
+            Zoom Out
+          </button>
+
+          <button
+            type="button"
+            class="btn btn-outline-secondary"
+            id="langgraphModalResetBtn">
+            <i class="bi bi-arrow-counterclockwise"></i>
+            Reset
+          </button>
+
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            id="langgraphModalZoomInBtn">
+            <i class="bi bi-zoom-in"></i>
+            Zoom In
+          </button>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+
+    <script>
+document.addEventListener("DOMContentLoaded", function () {
+  const container = document.getElementById("langgraphZoomContainer");
+  const image = document.getElementById("langgraphZoomImage");
+
+  const zoomInButton = document.getElementById("zoomInBtn");
+  const zoomOutButton = document.getElementById("zoomOutBtn");
+  const resetButton = document.getElementById("resetZoomBtn");
+  const zoomLevelLabel = document.getElementById("zoomLevel");
+
+  if (
+    !container ||
+    !image ||
+    !zoomInButton ||
+    !zoomOutButton ||
+    !resetButton ||
+    !zoomLevelLabel
+  ) {
+    return;
+  }
+
+  const minimumScale = 1;
+  const maximumScale = 5;
+  const zoomStep = 0.5;
+
+  let scale = 1;
+  let translateX = 0;
+  let translateY = 0;
+
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let startingTranslateX = 0;
+  let startingTranslateY = 0;
+
+  function clamp(value, minimum, maximum) {
+    return Math.min(Math.max(value, minimum), maximum);
+  }
+
+  function updateTransform() {
+    image.style.transform =
+      `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+
+    zoomLevelLabel.textContent = `${Math.round(scale * 100)}%`;
+
+    container.classList.toggle("is-zoomed", scale > 1);
+  }
+
+  function resetPositionWhenFullyZoomedOut() {
+    if (scale === minimumScale) {
+      translateX = 0;
+      translateY = 0;
+    }
+  }
+
+  function zoomTo(newScale) {
+    scale = clamp(newScale, minimumScale, maximumScale);
+
+    resetPositionWhenFullyZoomedOut();
+    updateTransform();
+  }
+
+  function zoomIn() {
+    zoomTo(scale + zoomStep);
+  }
+
+  function zoomOut() {
+    zoomTo(scale - zoomStep);
+  }
+
+  function resetZoom() {
+    scale = minimumScale;
+    translateX = 0;
+    translateY = 0;
+    updateTransform();
+  }
+
+  zoomInButton.addEventListener("click", zoomIn);
+  zoomOutButton.addEventListener("click", zoomOut);
+  resetButton.addEventListener("click", resetZoom);
+
+  container.addEventListener("click", function (event) {
+    if (isDragging) {
+      return;
+    }
+
+    if (event.shiftKey) {
+      zoomOut();
+    } else {
+      zoomIn();
+    }
+  });
+
+  container.addEventListener(
+    "wheel",
+    function (event) {
+      event.preventDefault();
+
+      const direction = event.deltaY < 0 ? 1 : -1;
+
+      zoomTo(scale + direction * 0.25);
+    },
+    { passive: false }
+  );
+
+  container.addEventListener("pointerdown", function (event) {
+    if (scale <= 1) {
+      return;
+    }
+
+    isDragging = true;
+
+    dragStartX = event.clientX;
+    dragStartY = event.clientY;
+
+    startingTranslateX = translateX;
+    startingTranslateY = translateY;
+
+    container.classList.add("is-dragging");
+    container.setPointerCapture(event.pointerId);
+  });
+
+  container.addEventListener("pointermove", function (event) {
+    if (!isDragging) {
+      return;
+    }
+
+    const movementX = event.clientX - dragStartX;
+    const movementY = event.clientY - dragStartY;
+
+    translateX = startingTranslateX + movementX;
+    translateY = startingTranslateY + movementY;
+
+    updateTransform();
+  });
+
+  function stopDragging(event) {
+    if (!isDragging) {
+      return;
+    }
+
+    isDragging = false;
+    container.classList.remove("is-dragging");
+
+    if (container.hasPointerCapture(event.pointerId)) {
+      container.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  container.addEventListener("pointerup", stopDragging);
+  container.addEventListener("pointercancel", stopDragging);
+
+  updateTransform();
+});
+</script>
+
+    <script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const modalElement =
+    document.getElementById("langgraphImageModal");
+
+  const previewImage =
+    document.getElementById("langgraphPreviewImage");
+
+  const container =
+    document.getElementById("langgraphModalZoomContainer");
+
+  const image =
+    document.getElementById("langgraphModalZoomImage");
+
+  const zoomInButton =
+    document.getElementById("langgraphModalZoomInBtn");
+
+  const zoomOutButton =
+    document.getElementById("langgraphModalZoomOutBtn");
+
+  const resetButton =
+    document.getElementById("langgraphModalResetBtn");
+
+  const zoomLevelLabel =
+    document.getElementById("langgraphModalZoomLevel");
+
+  if (
+    !modalElement ||
+    !previewImage ||
+    !container ||
+    !image ||
+    !zoomInButton ||
+    !zoomOutButton ||
+    !resetButton ||
+    !zoomLevelLabel
+  ) {
+    return;
+  }
+
+  const minimumScale = 1;
+  const maximumScale = 6;
+  const zoomStep = 0.5;
+
+  let scale = 1;
+  let translateX = 0;
+  let translateY = 0;
+
+  let isDragging = false;
+  let didDrag = false;
+
+  let dragStartX = 0;
+  let dragStartY = 0;
+
+  let startingTranslateX = 0;
+  let startingTranslateY = 0;
+
+  function clamp(value, minimum, maximum) {
+    return Math.min(
+      Math.max(value, minimum),
+      maximum
+    );
+  }
+
+  function updateTransform() {
+    image.style.transform =
+      `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+
+    zoomLevelLabel.textContent =
+      `${Math.round(scale * 100)}%`;
+
+    container.classList.toggle(
+      "is-zoomed",
+      scale > minimumScale
+    );
+  }
+
+  function resetTranslationWhenAtMinimum() {
+    if (scale === minimumScale) {
+      translateX = 0;
+      translateY = 0;
+    }
+  }
+
+  function zoomTo(newScale) {
+    scale = clamp(
+      newScale,
+      minimumScale,
+      maximumScale
+    );
+
+    resetTranslationWhenAtMinimum();
+    updateTransform();
+  }
+
+  function zoomIn() {
+    zoomTo(scale + zoomStep);
+  }
+
+  function zoomOut() {
+    zoomTo(scale - zoomStep);
+  }
+
+  function resetZoom() {
+    scale = minimumScale;
+    translateX = 0;
+    translateY = 0;
+    updateTransform();
+  }
+
+  zoomInButton.addEventListener(
+    "click",
+    zoomIn
+  );
+
+  zoomOutButton.addEventListener(
+    "click",
+    zoomOut
+  );
+
+  resetButton.addEventListener(
+    "click",
+    resetZoom
+  );
+
+  previewImage.addEventListener(
+    "keydown",
+    function (event) {
+      if (
+        event.key === "Enter" ||
+        event.key === " "
+      ) {
+        event.preventDefault();
+
+        const modal =
+          bootstrap.Modal.getOrCreateInstance(
+            modalElement
+          );
+
+        modal.show();
+      }
+    }
+  );
+
+  container.addEventListener(
+    "click",
+    function (event) {
+      if (didDrag) {
+        didDrag = false;
+        return;
+      }
+
+      if (event.shiftKey) {
+        zoomOut();
+      } else {
+        zoomIn();
+      }
+    }
+  );
+
+  container.addEventListener(
+    "wheel",
+    function (event) {
+      event.preventDefault();
+
+      const direction =
+        event.deltaY < 0 ? 1 : -1;
+
+      zoomTo(
+        scale + direction * 0.25
+      );
+    },
+    {
+      passive: false
+    }
+  );
+
+  container.addEventListener(
+    "pointerdown",
+    function (event) {
+      if (scale <= minimumScale) {
+        return;
+      }
+
+      isDragging = true;
+      didDrag = false;
+
+      dragStartX = event.clientX;
+      dragStartY = event.clientY;
+
+      startingTranslateX = translateX;
+      startingTranslateY = translateY;
+
+      container.classList.add(
+        "is-dragging"
+      );
+
+      container.setPointerCapture(
+        event.pointerId
+      );
+    }
+  );
+
+  container.addEventListener(
+    "pointermove",
+    function (event) {
+      if (!isDragging) {
+        return;
+      }
+
+      const movementX =
+        event.clientX - dragStartX;
+
+      const movementY =
+        event.clientY - dragStartY;
+
+      if (
+        Math.abs(movementX) > 3 ||
+        Math.abs(movementY) > 3
+      ) {
+        didDrag = true;
+      }
+
+      translateX =
+        startingTranslateX + movementX;
+
+      translateY =
+        startingTranslateY + movementY;
+
+      updateTransform();
+    }
+  );
+
+  function stopDragging(event) {
+    if (!isDragging) {
+      return;
+    }
+
+    isDragging = false;
+
+    container.classList.remove(
+      "is-dragging"
+    );
+
+    if (
+      container.hasPointerCapture(
+        event.pointerId
+      )
+    ) {
+      container.releasePointerCapture(
+        event.pointerId
+      );
+    }
+  }
+
+  container.addEventListener(
+    "pointerup",
+    stopDragging
+  );
+
+  container.addEventListener(
+    "pointercancel",
+    stopDragging
+  );
+
+  modalElement.addEventListener(
+    "shown.bs.modal",
+    function () {
+      resetZoom();
+    }
+  );
+
+  modalElement.addEventListener(
+    "hidden.bs.modal",
+    function () {
+      resetZoom();
+    }
+  );
+
+  updateTransform();
+});
+</script>
+
+{% endblock %}

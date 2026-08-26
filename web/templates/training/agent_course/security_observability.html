@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}14. Security, Audit and Observability — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:93%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>14. Security, Audit and Observability</h1><p>Connect Keycloak identity, API authorization, PHI audit, HTTP logs and LLM cost logs.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="security-stack mb-4"><div><span>1</span><h3>Keycloak 26</h3><p>PKCE browser login and confidential service/testing client.</p></div><div><span>2</span><h3>Identity middleware</h3><p>Resolves browser session, bearer JWT or internal agent channel.</p></div><div><span>3</span><h3>Role decorators</h3><p>REST endpoints independently authorize every action.</p></div><div><span>4</span><h3>PHI audit trail</h3><p>Records actor, action, resource, intent and PHI-access flag.</p></div><div><span>5</span><h3>Operational telemetry</h3><p>HTTP latency, LLM usage, token cost and structured JSON logs.</p></div></div>
+<div class="observability-grid"><div><i class="bi bi-clock-history"></i><b>HTTP call log</b><span>method, path, status, duration, actor</span></div><div><i class="bi bi-cpu"></i><b>LLM call log</b><span>model, tokens, latency, estimated cost</span></div><div><i class="bi bi-journal-check"></i><b>Audit log</b><span>business/PHI access evidence</span></div><div><i class="bi bi-braces"></i><b>Structured stdout</b><span>ELK, Splunk or Datadog ingestion</span></div></div><div class="callout"><i class="bi bi-activity"></i><div><strong>Logging must not break care workflows</strong><p>The implementation deliberately catches logging failures so observability remains important but non-blocking.</p></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_business_legal') }}"><i class="bi bi-arrow-left"></i> 13. Management, Finance and Legal</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_end_to_end') }}">15. End-to-End Execution <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

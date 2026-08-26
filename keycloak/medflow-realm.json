@@ -1,0 +1,137 @@
+{
+  "realm": "medflow",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+
+  "roles": {
+    "realm": [
+      { "name": "PHYSICIAN",  "description": "Attending/treating physician" },
+      { "name": "NURSE",      "description": "Bedside nursing staff" },
+      { "name": "PHARMACIST", "description": "Pharmacy staff" },
+      { "name": "ADMISSIONS", "description": "Registration / admissions staff" },
+      { "name": "FINANCE",    "description": "Billing / revenue cycle staff (Phase 2)" },
+      { "name": "MANAGEMENT", "description": "Hospital group management / executives (Phase 2)" },
+      { "name": "LEGAL",      "description": "Legal / compliance / audit staff (Phase 2)" },
+      { "name": "ADMIN",      "description": "System / integration test account" }
+    ]
+  },
+
+  "clients": [
+    {
+      "clientId": "medflow-web",
+      "name": "MedFlow Web (Browser, PKCE)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:5000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5000"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "medflow-service",
+      "name": "MedFlow Service (Confidential — bash/script testing)",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "secret": "change-me-service-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "client_credentials.use_refresh_token": "false"
+      }
+    }
+  ],
+
+  "users": [
+    {
+      "id": "b1a1c2d3-1111-4a4a-8a8a-000000000001",
+      "username": "nurse1",
+      "email": "nurse1@medflow.example",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Angela",
+      "lastName": "Reyes",
+      "credentials": [
+        { "type": "password", "value": "Nurse123!", "temporary": false }
+      ],
+      "realmRoles": ["NURSE"]
+    },
+    {
+      "id": "b1a1c2d3-1111-4a4a-8a8a-000000000002",
+      "username": "pharm1",
+      "email": "pharm1@medflow.example",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Marcus",
+      "lastName": "Chen",
+      "credentials": [
+        { "type": "password", "value": "Pharm123!", "temporary": false }
+      ],
+      "realmRoles": ["PHARMACIST"]
+    },
+    {
+      "id": "b1a1c2d3-1111-4a4a-8a8a-000000000003",
+      "username": "admissions1",
+      "email": "admissions1@medflow.example",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Denise",
+      "lastName": "Walker",
+      "credentials": [
+        { "type": "password", "value": "Admissions123!", "temporary": false }
+      ],
+      "realmRoles": ["ADMISSIONS"]
+    },
+    {
+      "id": "b1a1c2d3-1111-4a4a-8a8a-000000000004",
+      "username": "physician1",
+      "email": "physician1@medflow.example",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Sanjay",
+      "lastName": "Patel",
+      "credentials": [
+        { "type": "password", "value": "Physician123!", "temporary": false }
+      ],
+      "realmRoles": ["PHYSICIAN"],
+      "attributes": {
+        "note": ["Phase 2 role — no subgraph wired yet, staff record already seeded"]
+      }
+    },
+    {
+      "id": "b1a1c2d3-1111-4a4a-8a8a-000000000005",
+      "username": "svc.tester",
+      "email": "svc.tester@medflow.example",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "System",
+      "lastName": "Tester",
+      "credentials": [
+        { "type": "password", "value": "TesterPass123!", "temporary": false }
+      ],
+      "realmRoles": ["ADMIN"],
+      "attributes": {
+        "note": ["Used with the medflow-service confidential client + Resource Owner Password grant for bash script testing — see keycloak/test_confidential_client.sh"]
+      }
+    }
+  ]
+}

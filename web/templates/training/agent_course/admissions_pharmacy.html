@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}12. Admissions and Pharmacy — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:80%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>12. Admissions and Pharmacy</h1><p>Compare workflow-oriented and medication-safety-oriented agents.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="row g-4"><div class="col-lg-6"><div class="persona-panel"><h2><i class="bi bi-person-plus"></i> Admissions</h2><ol><li>Search by MRN first</li><li>Create patient only if absent</li><li>Create encounter</li><li>Find available bed</li><li>Assign bed</li></ol><p class="boundary">Primary risk: duplicate identity and invalid bed assignment.</p></div></div><div class="col-lg-6"><div class="persona-panel"><h2><i class="bi bi-prescription2"></i> Pharmacy</h2><ol><li>Review active requests</li><li>Check interactions</li><li>Check inventory</li><li>Dispense medication</li></ol><p class="boundary">Primary risk: unsafe interaction or inventory inconsistency.</p></div></div></div>
+<div class="flow-strip animated-flow mt-4"><div>Role prompt</div><i></i><div>Safety prerequisite</div><i></i><div>Read tool</div><i></i><div>Validation</div><i></i><div>Write tool</div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_physician') }}"><i class="bi bi-arrow-left"></i> 11. Physician Subgraph</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_business_legal') }}">13. Management, Finance and Legal <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

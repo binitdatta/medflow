@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}4. graph.py: Role Wiring — MedFlow Training Changed{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:27%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training LG</span><h1>4. graph.py: Role Wiring</h1><p>Understand ROLE_CONFIG, graph caching and role-specific tool binding.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="role-router mb-4"><div class="router-input">Authenticated role</div><div class="router-core">ROLE_CONFIG</div><div class="router-outputs"><span>NURSE</span><span>PHYSICIAN</span><span>PHARMACIST</span><span>ADMISSIONS</span><span>FINANCE</span><span>MANAGEMENT</span><span>LEGAL</span></div></div><div class="accordion code-accordion mb-4" id="acc-roleconfig"><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#code-roleconfig"><i class="bi bi-code-slash me-2"></i>ROLE_CONFIG binds each role to tools and a system prompt</button></h2><div id="code-roleconfig" class="accordion-collapse collapse" data-bs-parent="#acc-roleconfig"><div class="accordion-body p-0"><pre class="code-panel"><code>ROLE_CONFIG = {
+    &quot;NURSE&quot;: (NURSE_TOOLS, NURSE_SYSTEM_PROMPT),
+    &quot;PHARMACIST&quot;: (PHARMACY_TOOLS, PHARMACY_SYSTEM_PROMPT),
+    &quot;ADMISSIONS&quot;: (ADMISSIONS_TOOLS, ADMISSIONS_SYSTEM_PROMPT),
+    &quot;PHYSICIAN&quot;: (PHYSICIAN_TOOLS, PHYSICIAN_SYSTEM_PROMPT),
+    &quot;FINANCE&quot;: (FINANCE_TOOLS, FINANCE_SYSTEM_PROMPT),
+    &quot;MANAGEMENT&quot;: (MANAGEMENT_TOOLS, MANAGEMENT_SYSTEM_PROMPT),
+    &quot;LEGAL&quot;: (LEGAL_TOOLS, LEGAL_SYSTEM_PROMPT),
+}</code></pre></div></div></div></div><div class="row g-3"><div class="col-md-6"><div class="concept-card"><h3>Tool binding</h3><p><code>ChatAnthropic(...).bind_tools(tools)</code> exposes only the selected role's tools to the model.</p></div></div><div class="col-md-6"><div class="concept-card"><h3>Compiled graph cache</h3><p><code>_COMPILED_GRAPHS</code> builds a role graph once and reuses it across requests.</p></div></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_agent_folder') }}"><i class="bi bi-arrow-left"></i> 3. The agent Package</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_react_loop') }}">5. LangGraph ReAct Loop <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

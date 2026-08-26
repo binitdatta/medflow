@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}1. app.py: Application Bootstrap — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:7%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>1. app.py: Application Bootstrap</h1><p>Follow the application factory from process start to registered routes.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="flow-strip animated-flow mb-4"><div>python app.py</div><i></i><div>create_app()</div><i></i><div>Config</div><i></i><div>SQLAlchemy</div><i></i><div>Middleware</div><i></i><div>Blueprints</div><i></i><div>HTTP Server</div></div>
+<div class="row g-4"><div class="col-lg-7"><div class="timeline"><div><span>1</span><h3>Create Flask application</h3><p><code>Flask(__name__)</code> creates the application object and establishes the application context.</p></div><div><span>2</span><h3>Load environment-backed configuration</h3><p><code>app.config.from_object(Config)</code> installs database, Keycloak and Anthropic settings.</p></div><div><span>3</span><h3>Initialize persistence</h3><p><code>db.init_app(app)</code> attaches the shared Flask-SQLAlchemy extension.</p></div><div><span>4</span><h3>Install cross-cutting middleware</h3><p>Identity resolution runs before requests; HTTP integration logging starts and completes around each request.</p></div><div><span>5</span><h3>Register user-facing and API routes</h3><p>Authentication, web UI and REST API blueprints become part of one Flask process.</p></div></div></div><div class="col-lg-5"><div class="concept-card"><h3>Application factory benefit</h3><p>The factory keeps construction explicit, supports tests, and prevents extensions from binding to a Flask instance at import time.</p></div></div></div><div class="accordion code-accordion mb-4" id="acc-app"><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#code-app"><i class="bi bi-code-slash me-2"></i>Actual app.py bootstrap sequence</button></h2><div id="code-app" class="accordion-collapse collapse" data-bs-parent="#acc-app"><div class="accordion-body p-0"><pre class="code-panel"><code>def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
+    db.init_app(app)
+    import models
+    app.before_request(resolve_identity)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(web_bp)
+    register_api_blueprints(app)
+    return app
+
+if __name__ == &quot;__main__&quot;:
+    app = create_app()
+    app.run(host=&quot;0.0.0.0&quot;, port=port, debug=app.config[&quot;DEBUG&quot;])</code></pre></div></div></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-arrow-left"></i> Course Overview</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_project_structure') }}">2. Project Structure <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

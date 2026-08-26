@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}HL7 / FHIR — MedFlow Training{% endblock %}
+{% block content %}
+<h3>HL7 / FHIR Resource Mapping</h3>
+<p class="text-muted">Teaching the shape of healthcare interoperability without standing up a full HL7 v2 interface engine.</p>
+
+<div class="card mb-4">
+    <div class="card-header">Why FHIR-shaped, not raw HL7 v2 MLLP</div>
+    <div class="card-body">
+        <p class="mb-0">Real hospital integration engines exchange pipe-delimited
+        HL7 v2 messages (ADT, ORM, ORU) over MLLP sockets — valuable to know
+        exists, but not the most productive thing for an intern to build from
+        scratch. This POC instead shapes its REST payloads to mirror FHIR
+        R4 resources, which is where the industry has been moving anyway and
+        maps cleanly onto normal JSON/REST skills.</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Table → FHIR resource mapping</div>
+    <div class="card-body">
+        <table class="table table-sm">
+            <tr><th>MySQL table</th><th>FHIR resource</th><th>Notes</th></tr>
+            <tr><td><code>patients</code></td><td>Patient</td><td>mrn → Patient.identifier, dob → birthDate</td></tr>
+            <tr><td><code>encounters</code></td><td>Encounter</td><td>encounter_type → Encounter.class, status → Encounter.status</td></tr>
+            <tr><td><code>diagnoses</code></td><td>Condition</td><td>icd10_code → Condition.code (ICD-10-CM system)</td></tr>
+            <tr><td><code>medication_requests</code></td><td>MedicationRequest</td><td>ndc_code → medicationCodeableConcept (NDC system)</td></tr>
+            <tr><td><code>medication_administrations</code></td><td>MedicationAdministration</td><td></td></tr>
+            <tr><td><code>lab_orders</code></td><td>ServiceRequest + Observation</td><td>order → ServiceRequest, result → Observation</td></tr>
+            <tr><td><code>beds</code> / <code>bed_assignments</code></td><td>Location + Encounter.location</td><td>no direct FHIR "Bed" resource — modeled as a Location</td></tr>
+        </table>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Example: an ADT-style admit, expressed as REST + JSON</div>
+    <div class="card-body">
+        <p>Instead of an HL7 v2 <code>ADT^A01</code> message, the Admissions
+        subgraph's <code>create_encounter</code> tool posts:</p>
+        <pre class="code-block">POST /api/encounters
+{
+  "patient_id": 1,
+  "hospital_id": 1,
+  "encounter_type": "INPATIENT",
+  "chief_complaint": "Shortness of breath"
+}</pre>
+        <p class="mb-0">Same real-world event (a patient admission), same
+        downstream effect (a new active Encounter record), expressed as a
+        REST call instead of a segment-delimited message over MLLP. Phase 2
+        can add a genuine HL7 v2 listener that translates inbound ADT
+        messages into calls against this same endpoint, if that's a skill
+        you want interns to see end-to-end.</p>
+    </div>
+</div>
+{% endblock %}

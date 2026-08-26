@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}6. Trusted Identity Context — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:40%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>6. Trusted Identity Context</h1><p>See why identity is injected from Flask rather than accepted from the LLM.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="trust-boundary mb-4"><div class="trusted"><h3>Trusted application data</h3><span>Flask session / validated JWT</span><span>staff_id</span><span>role</span><span>hospital_id</span></div><div class="boundary-arrow">set_identity()</div><div class="context-box"><h3>ContextVars</h3><code>current_staff_id</code><code>current_role</code><code>current_hospital_id</code><code>current_chat_session_id</code></div><div class="boundary-arrow">tool reads</div><div class="tool-box"><h3>LangChain tool</h3><p>Identity is not supplied in tool arguments by the LLM.</p></div></div><div class="accordion code-accordion mb-4" id="acc-context"><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#code-context"><i class="bi bi-code-slash me-2"></i>Identity context</button></h2><div id="code-context" class="accordion-collapse collapse" data-bs-parent="#acc-context"><div class="accordion-body p-0"><pre class="code-panel"><code>current_staff_id = ContextVar(&quot;current_staff_id&quot;, default=None)
+current_role = ContextVar(&quot;current_role&quot;, default=None)
+current_hospital_id = ContextVar(&quot;current_hospital_id&quot;, default=None)
+
+def set_identity(staff_id, role, hospital_id, chat_session_id=None):
+    current_staff_id.set(staff_id)
+    current_role.set(role)
+    current_hospital_id.set(hospital_id)</code></pre></div></div></div></div><div class="callout"><i class="bi bi-shield-lock"></i><div><strong>Prompt-injection resistance</strong><p>A user can type “act as a physician,” but the role used by tools still comes from the authenticated request context.</p></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_react_loop') }}"><i class="bi bi-arrow-left"></i> 5. LangGraph ReAct Loop</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_api_client') }}">7. Agent-to-REST Boundary <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

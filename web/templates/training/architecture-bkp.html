@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Architecture — MedFlow Training{% endblock %}
+{% block content %}
+<h3>Architecture Walkthrough</h3>
+<p class="text-muted">How a chat message turns into a database read or write.</p>
+
+<div class="card mb-4">
+    <div class="card-header">Request path</div>
+    <div class="card-body">
+        <pre class="code-block">Browser (Bootstrap 5 chat widget)
+  -> POST /api/chat/sessions/{id}/messages   (Flask, role read from session)
+     -> agent.graph.run_agent(user_query, staff_id, role, hospital_scope)
+        -> sets identity contextvars (agent/context.py)
+        -> LangGraph role subgraph (Nurse | Pharmacist | Admissions)
+           -> ChatAnthropic decides: answer directly, or call a tool
+           -> tool call -> agent/api_client.py -> HTTP request to
+              this SAME Flask app's own REST endpoint
+              (X-Service-Secret + X-Acting-Staff-Id / X-Acting-Role headers)
+           -> Flask endpoint (api/*.py) re-checks the role via @require_role
+              -> SQLAlchemy model -> MySQL 8
+              -> writes an audit_log row if PHI was touched
+           -> tool result flows back into the LangGraph loop
+        -> final AI message returned as the chat response</pre>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Why the agent calls its own REST API instead of the database directly</div>
+    <div class="card-body">
+        <ul>
+            <li>The Flask endpoint is the single place role checks, audit
+            logging, and PHI-shaping logic live — the agent doesn't need to
+            duplicate any of that.</li>
+            <li>A human-built Bootstrap UI and the LangGraph agent hit the
+            exact same contract, so there's only one API surface to secure
+            and test, not two.</li>
+            <li>It's also what makes <code>keycloak/test_confidential_client.sh</code>
+            meaningful: the same endpoints the agent calls can be exercised
+            directly with a Bearer token to prove RBAC holds regardless of
+            caller.</li>
+        </ul>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Stack summary</div>
+    <div class="card-body">
+        <table class="table table-sm">
+            <tr><th>Layer</th><th>Choice</th></tr>
+            <tr><td>Backend</td><td>Python 3.12, Flask, SQLAlchemy</td></tr>
+            <tr><td>Database</td><td>MySQL 8.x (DBA-owned DDL, see db/ddl.sql)</td></tr>
+            <tr><td>Agent orchestration</td><td>LangChain tools + LangGraph StateGraph (per-role ReAct loop)</td></tr>
+            <tr><td>Identity</td><td>Keycloak 26, Authorization Code + PKCE (browser), confidential client (service/testing)</td></tr>
+            <tr><td>UI</td><td>Bootstrap 5, Light Blue theme, server-rendered Jinja templates</td></tr>
+        </table>
+    </div>
+</div>
+{% endblock %}

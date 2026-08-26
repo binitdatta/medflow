@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}3. The agent Package — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:20%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>3. The agent Package</h1><p>See how graph, context, state, API client, pricing and subgraphs collaborate.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="folder-explorer mb-4"><div class="folder-root"><i class="bi bi-folder2-open"></i> agent/</div><div class="folder-grid">
+<div><b>graph.py</b><small>Builds and invokes role graphs</small></div><div><b>context.py</b><small>Trusted identity ContextVars</small></div><div><b>api_client.py</b><small>Secured internal REST client</small></div><div><b>state.py</b><small>Typed state contracts</small></div><div><b>pricing.py</b><small>Model cost lookup</small></div><div><b>subgraphs/</b><small>Role tools and prompts</small></div></div></div>
+<div class="hub-diagram"><div class="hub">graph.py</div><div class="orbit o1">context.py</div><div class="orbit o2">api_client.py</div><div class="orbit o3">state.py</div><div class="orbit o4">pricing.py</div><div class="orbit o5">subgraphs/</div></div><div class="callout"><i class="bi bi-diagram-3"></i><div><strong>Separation of concerns</strong><p>The graph controls execution. Subgraph modules define role capabilities. The REST API retains authorization and business-data ownership.</p></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_project_structure') }}"><i class="bi bi-arrow-left"></i> 2. Project Structure</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_graph_wiring') }}">4. graph.py: Role Wiring <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

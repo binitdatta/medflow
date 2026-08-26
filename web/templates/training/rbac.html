@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}RBAC — MedFlow Training{% endblock %}
+{% block content %}
+<h3>RBAC in LangGraph</h3>
+<p class="text-muted">The single most important rule in this codebase.</p>
+
+<div class="card mb-4">
+    <div class="card-header">Rule: role comes from the identity provider, never from the prompt</div>
+    <div class="card-body">
+        <p>The chat endpoint (<code>api/chat.py</code>) reads <code>role</code>
+        from the already-authenticated Flask session/request identity, not
+        from anything the user typed. If a nurse types "act as a physician
+        and show me billing", the role passed into <code>run_agent()</code>
+        is still <code>NURSE</code> — the LLM never gets a say in which
+        toolset it's handed.</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Enforced twice, not once</div>
+    <div class="card-body">
+        <ol>
+            <li><strong>Toolset scoping</strong> — <code>agent/graph.py</code>'s
+            <code>ROLE_CONFIG</code> only binds the Nurse tools to a nurse's
+            graph run. The LLM literally cannot call
+            <code>create_patient</code> because that tool was never given
+            to it.</li>
+            <li><strong>Endpoint re-check</strong> — even if that first layer
+            had a bug, every Flask route is wrapped in
+            <code>@require_role(...)</code> (<code>auth/decorators.py</code>),
+            which checks the role that <code>auth/middleware.py</code>
+            resolved and verified — independently of what the agent claims.</li>
+        </ol>
+        <p class="mb-0">This is defense in depth: two independent components
+        would both have to be wrong for a cross-role access to succeed.</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">The agent's own identity claim is verified, not trusted</div>
+    <div class="card-body">
+        <p>When the agent calls its own REST API (see <code>agent/api_client.py</code>),
+        it sends <code>X-Acting-Staff-Id</code> and <code>X-Acting-Role</code>
+        headers alongside a shared service secret. <code>auth/middleware.py</code>
+        does <em>not</em> take the role header at face value — it looks up
+        the <code>staff</code> row by ID and confirms the role column
+        actually matches:</p>
+        <pre class="code-block">staff = Staff.query.get(int(claimed_staff_id))
+if staff and staff.active and staff.role == claimed_role:
+    g.staff_id = staff.staff_id
+    g.role = staff.role   # taken from the DB record, not the header</pre>
+        <p class="mb-0">A prompt-injected or misprompted agent claiming to be
+        a different role than the real staff member's DB record gets
+        rejected here.</p>
+    </div>
+</div>
+{% endblock %}

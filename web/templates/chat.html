@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Assistant — MedFlow{% endblock %}
+{% block content %}
+<h4>MedFlow Assistant <span class="medflow-role-badge">{{ role }}</span></h4>
+<div class="card mt-3">
+    <div class="card-body">
+        <div id="chatWindow" class="chat-window mb-3"></div>
+        <form id="chatForm" class="d-flex gap-2">
+            <input type="text" id="chatInput" class="form-control"
+                   placeholder="e.g. Which patients on unit 3 are due for meds?" autocomplete="off" required>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Send</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const ROLE = "{{ role }}";
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}

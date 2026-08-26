@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}9. Role-Specific Subgraphs — MedFlow Training{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-course.css') }}">
+<div class="agent-course" data-course-page>
+  <div class="course-progress mb-3"><div style="width:60%"></div></div>
+  <section class="course-hero mb-4">
+    <div><span class="course-kicker">MedFlow Agent Architecture Training</span><h1>9. Role-Specific Subgraphs</h1><p>Compare prompts, tools, data boundaries and allowed actions by role.</p></div>
+    <a class="course-home" href="{{ url_for('web.training_agent_index') }}"><i class="bi bi-grid"></i> Course map</a>
+  </section>
+  <div class="table-responsive"><table class="table role-table"><thead><tr><th>Role</th><th>Tool domain</th><th>Action profile</th><th>Data boundary</th></tr></thead><tbody><tr><td><strong>Nurse</strong></td><td>Unit patients, medications, bed status</td><td>Read + medication administration</td><td>Clinical / operational</td></tr><tr><td><strong>Physician</strong></td><td>Chart, diagnoses, labs, prescriptions</td><td>Read + clinical create</td><td>Clinical</td></tr><tr><td><strong>Pharmacist</strong></td><td>Orders, interactions, inventory</td><td>Read + dispense</td><td>Medication / inventory</td></tr><tr><td><strong>Admissions</strong></td><td>Patient registration, encounters, beds</td><td>Read + create + assign</td><td>Identity / operational</td></tr><tr><td><strong>Management</strong></td><td>Occupancy, volume, inventory, revenue</td><td>Aggregate read-only</td><td>No patient detail</td></tr><tr><td><strong>Finance</strong></td><td>Claims and revenue</td><td>Billing read-only</td><td>No clinical detail</td></tr><tr><td><strong>Legal</strong></td><td>Audit trails</td><td>Audit read-only</td><td>Compliance evidence</td></tr></tbody></table></div><div class="callout"><i class="bi bi-person-lock"></i><div><strong>Least capability by construction</strong><p>The model cannot call a tool that was never bound to its role-specific graph. API authorization independently enforces the same boundary.</p></div></div>
+  <div class="lesson-nav mt-5"><a class="btn btn-outline-primary" href="{{ url_for('web.training_agent_chat_request') }}"><i class="bi bi-arrow-left"></i> 8. Chat Session and Memory</a><a class="btn btn-primary" href="{{ url_for('web.training_agent_nurse') }}">10. Nurse Subgraph <i class="bi bi-arrow-right"></i></a></div>
+</div>
+<script src="{{ url_for('static', filename='js/agent-course.js') }}"></script>
+{% endblock %}

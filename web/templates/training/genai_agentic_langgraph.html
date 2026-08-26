@@ -1,0 +1,534 @@
+{% extends "base.html" %}
+{% block title %}LangGraph in Agentic AI — Training{% endblock %}
+
+{% block content %}
+<style>
+    .langgraph-hero {
+        background: linear-gradient(135deg, #0d6efd 0%, #5b2be0 100%);
+        color: #fff;
+        border-radius: 1rem;
+        padding: 2.25rem;
+        box-shadow: 0 1rem 2rem rgba(13, 110, 253, .16);
+    }
+
+    .concept-card,
+    .analogy-card,
+    .architecture-card {
+        border: 0;
+        box-shadow: 0 .4rem 1.25rem rgba(0, 0, 0, .08);
+    }
+
+    .concept-card .card-header,
+    .architecture-card .card-header {
+        background: #f8f9fa;
+        font-weight: 700;
+    }
+
+    .icon-circle {
+        width: 3rem;
+        height: 3rem;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(13, 110, 253, .12);
+        color: #0d6efd;
+        font-size: 1.35rem;
+        flex: 0 0 auto;
+    }
+
+    .flow-diagram {
+        background: #101828;
+        color: #e6edf7;
+        border-radius: .8rem;
+        padding: 1.25rem;
+        white-space: pre;
+        overflow-x: auto;
+        font-family: var(--bs-font-monospace);
+        line-height: 1.55;
+        margin-bottom: 0;
+    }
+
+    .comparison-box {
+        border-left: .3rem solid #0d6efd;
+        background: #f8f9fa;
+        border-radius: .5rem;
+        padding: 1rem 1.25rem;
+    }
+
+    .number-badge {
+        width: 2.25rem;
+        height: 2.25rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: #0d6efd;
+        color: #fff;
+        font-weight: 700;
+        margin-right: .6rem;
+    }
+
+    .table thead th {
+        white-space: nowrap;
+    }
+</style>
+
+<section class="langgraph-hero mb-5">
+    <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+            <span class="badge text-bg-light text-primary mb-3">Agentic AI Architecture</span>
+            <h1 class="display-6 fw-bold">The Role of LangGraph in Building Agentic AI Applications</h1>
+            <p class="lead mb-0">
+                LangGraph is the orchestration layer that coordinates LLM reasoning,
+                tools, business rules, application state, retries, branching, and human approval
+                into a controlled, inspectable workflow.
+            </p>
+        </div>
+        <div class="col-lg-4">
+            <div class="bg-white bg-opacity-10 rounded-4 p-4">
+                <div class="fw-semibold mb-2">A simple way to remember it</div>
+                <div><strong>LLM:</strong> Intelligent worker</div>
+                <div><strong>Tools:</strong> Systems the worker can use</div>
+                <div><strong>Agents:</strong> Specialized team members</div>
+                <div><strong>LangGraph:</strong> Operations manager</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <div class="row g-4">
+        <div class="col-md-6 col-xl-3">
+            <div class="card concept-card h-100">
+                <div class="card-body">
+                    <div class="icon-circle mb-3"><i class="bi bi-stars"></i></div>
+                    <h3 class="h5">LLM</h3>
+                    <p class="mb-0">Understands language, reasons about a request, and generates a response or a proposed next action.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card concept-card h-100">
+                <div class="card-body">
+                    <div class="icon-circle mb-3"><i class="bi bi-tools"></i></div>
+                    <h3 class="h5">Tools</h3>
+                    <p class="mb-0">REST APIs, databases, search engines, message queues, ERP systems, and other capabilities available to an agent.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card concept-card h-100">
+                <div class="card-body">
+                    <div class="icon-circle mb-3"><i class="bi bi-person-workspace"></i></div>
+                    <h3 class="h5">Agents</h3>
+                    <p class="mb-0">Specialists that combine an LLM, instructions, domain context, and a controlled set of tools.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card concept-card h-100">
+                <div class="card-body">
+                    <div class="icon-circle mb-3"><i class="bi bi-diagram-3"></i></div>
+                    <h3 class="h5">LangGraph</h3>
+                    <p class="mb-0">Defines which agent or tool runs next, what state is carried forward, and when the workflow stops, retries, branches, or pauses.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <div class="d-flex align-items-center mb-3">
+        <span class="number-badge">1</span>
+        <h2 class="h3 mb-0">Real-life analogy: an international airport</h2>
+    </div>
+    <div class="card analogy-card">
+        <div class="card-body p-4">
+            <p>
+                An airport does not fly the airplane. It coordinates passport checks, luggage handling,
+                security, immigration, gate assignment, boarding, and departure. Every participant has a
+                specialized responsibility, but the passenger experiences one coordinated journey.
+            </p>
+            <pre class="flow-diagram">Passenger Request
+       |
+       v
+Airport Orchestration
+       |
+  +----+----------------------+------------------+
+  |                           |                  |
+  v                           v                  v
+Passport Check          Security Screening   Baggage Handling
+  |                           |                  |
+  +---------------------------+------------------+
+                              |
+                              v
+                         Boarding Gate
+                              |
+                              v
+                           Departure</pre>
+            <div class="comparison-box mt-4">
+                <strong>Agentic AI equivalent:</strong> LangGraph coordinates the LLM, specialized agents,
+                databases, APIs, policy checks, and approvals so that they behave like one application.
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <div class="d-flex align-items-center mb-3">
+        <span class="number-badge">2</span>
+        <h2 class="h3 mb-0">Real-life analogy: a CEO coordinating departments</h2>
+    </div>
+    <div class="card analogy-card">
+        <div class="card-body p-4">
+            <p>
+                A customer may request 10,000 packages delivered to Germany. The CEO does not personally
+                source raw material, negotiate pricing, create a purchase order, arrange transportation,
+                check customs rules, and issue the invoice. The CEO delegates to specialists and coordinates
+                their results.
+            </p>
+            <pre class="flow-diagram">Customer Request
+       |
+       v
+Planner / Coordinator
+       |
+  +----+------------+-------------+------------+
+  |                 |             |            |
+  v                 v             v            v
+Sourcing Agent  Inventory Agent  Logistics   Compliance
+  |                 |             Agent        Agent
+  +-----------------+-------------+------------+
+                        |
+                        v
+                 Finance / Response</pre>
+            <p class="mt-4 mb-0">
+                In this analogy, each department is an agent, the enterprise systems are tools,
+                and LangGraph is the operating structure that decides who works next.
+            </p>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <div class="d-flex align-items-center mb-3">
+        <span class="number-badge">3</span>
+        <h2 class="h3 mb-0">Why a graph instead of a simple chain?</h2>
+    </div>
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card architecture-card h-100">
+                <div class="card-header"><i class="bi bi-arrow-right"></i> Traditional linear chain</div>
+                <div class="card-body">
+                    <pre class="flow-diagram">Question
+   |
+   v
+LLM
+   |
+   v
+Tool
+   |
+   v
+LLM
+   |
+   v
+Answer</pre>
+                    <p class="mt-3 mb-0">
+                        Useful for predictable, one-direction workflows, but limited when the application must branch,
+                        loop, retry, pause, or call multiple specialists.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card architecture-card h-100">
+                <div class="card-header"><i class="bi bi-share"></i> LangGraph workflow</div>
+                <div class="card-body">
+                    <pre class="flow-diagram">               Planner
+                  |
+       +----------+----------+
+       |          |          |
+       v          v          v
+   Inventory   Pricing    Shipping
+       |          |          |
+       +----------+----------+
+                  |
+                  v
+             Risk Review
+                  |
+            +-----+-----+
+            |           |
+            v           v
+         Approve      Escalate</pre>
+                    <p class="mt-3 mb-0">
+                        A graph models real business behavior: multiple routes, conditional decisions,
+                        feedback loops, and controlled stopping points.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <h2 class="h3 mb-3">Core responsibilities of LangGraph</h2>
+    <div class="accordion" id="langgraphResponsibilities">
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#routing">
+                    <i class="bi bi-signpost-split me-2"></i> Conditional routing
+                </button>
+            </h2>
+            <div id="routing" class="accordion-collapse collapse show" data-bs-parent="#langgraphResponsibilities">
+                <div class="accordion-body">
+                    LangGraph can route a request to different nodes based on intent, data, user role,
+                    order status, risk level, or tool output. For example, an address change may be allowed
+                    for a <code>CREATED</code> order but rejected for a <code>DELIVERED</code> order.
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#state">
+                    <i class="bi bi-database-check me-2"></i> State management and memory
+                </button>
+            </h2>
+            <div id="state" class="accordion-collapse collapse" data-bs-parent="#langgraphResponsibilities">
+                <div class="accordion-body">
+                    State carries information from one node to another: conversation messages, customer ID,
+                    selected order, tool results, approval status, retry count, and intermediate decisions.
+                    This allows a multi-step process to continue without starting over.
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#looping">
+                    <i class="bi bi-arrow-repeat me-2"></i> Loops, reflection, and retries
+                </button>
+            </h2>
+            <div id="looping" class="accordion-collapse collapse" data-bs-parent="#langgraphResponsibilities">
+                <div class="accordion-body">
+                    The graph can call a tool, inspect the result, decide that more information is needed,
+                    refine the request, and call another tool. It can also retry transient failures or route
+                    to a fallback service instead of terminating the entire workflow.
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#parallel">
+                    <i class="bi bi-distribute-horizontal me-2"></i> Parallel execution
+                </button>
+            </h2>
+            <div id="parallel" class="accordion-collapse collapse" data-bs-parent="#langgraphResponsibilities">
+                <div class="accordion-body">
+                    Independent activities such as sales analysis, inventory lookup, and shipment tracking
+                    can run in parallel. Their results can then be combined by a reporting or decision node.
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#humanApproval">
+                    <i class="bi bi-person-check me-2"></i> Human-in-the-loop approval
+                </button>
+            </h2>
+            <div id="humanApproval" class="accordion-collapse collapse" data-bs-parent="#langgraphResponsibilities">
+                <div class="accordion-body">
+                    High-risk or irreversible actions can pause before execution. A refund, purchase order,
+                    account deletion, contract award, or production change can wait for a human approver before
+                    the graph resumes.
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#auditability">
+                    <i class="bi bi-journal-check me-2"></i> Auditability and controlled execution
+                </button>
+            </h2>
+            <div id="auditability" class="accordion-collapse collapse" data-bs-parent="#langgraphResponsibilities">
+                <div class="accordion-body">
+                    Named nodes and explicit edges make the workflow easier to inspect, test, log, and govern.
+                    The organization can see which agent acted, which tool was called, what result was returned,
+                    and why the next branch was selected.
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <h2 class="h3 mb-3">Example: cancelling an order</h2>
+    <div class="card architecture-card">
+        <div class="card-body p-4">
+            <pre class="flow-diagram">User: "Cancel order 12345"
+              |
+              v
+       Authentication Node
+              |
+              v
+        Intent / Planner Node
+              |
+              v
+        Order Lookup Tool
+              |
+              v
+       Policy Validation Node
+          /             \
+         /               \
+Allowed? YES            NO
+   |                      |
+   v                      v
+Cancel Order Tool    Policy Denial Response
+   |
+   v
+Audit Event / Confirmation</pre>
+            <p class="mt-4 mb-0">
+                The LLM may understand the request, but it should not directly cancel the order.
+                LangGraph places deterministic authentication, authorization, lookup, and policy nodes
+                around the model before the transactional API is called.
+            </p>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <h2 class="h3 mb-3">Enterprise Flask application architecture</h2>
+    <div class="card architecture-card">
+        <div class="card-body p-4">
+            <pre class="flow-diagram">Browser / Bootstrap 5 UI
+           |
+           v
+      Flask Web Layer
+           |
+           v
+Keycloak / Entra ID Authentication
+           |
+           v
+      LangGraph Workflow
+           |
+  +--------+-----------+-------------+--------------+
+  |                    |             |              |
+  v                    v             v              v
+Planner Agent     Domain Agents   State Store   Policy Nodes
+  |                    |
+  +--------+-----------+
+           |
+           v
+  +--------+-----------+-------------+--------------+
+  |                    |             |              |
+  v                    v             v              v
+REST APIs          SQL Database   RabbitMQ      Vector Search
+           |
+           v
+ Human Approval / Audit / Final Response</pre>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <h2 class="h3 mb-3">LangChain compared with LangGraph</h2>
+    <div class="card architecture-card">
+        <div class="card-body table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Capability</th>
+                        <th>LangChain</th>
+                        <th>LangGraph</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Prompt and model integration</strong></td>
+                        <td>Provides model wrappers, prompts, messages, and output parsers.</td>
+                        <td>Uses those components inside graph nodes.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tool definition</strong></td>
+                        <td>Defines tools that an LLM or agent can call.</td>
+                        <td>Controls when tools run and what happens after each result.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Workflow shape</strong></td>
+                        <td>Often used for chains and agent building blocks.</td>
+                        <td>Designed for branches, loops, subgraphs, checkpoints, and stateful execution.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Human approval</strong></td>
+                        <td>Can be implemented with application logic.</td>
+                        <td>Can be modeled as an explicit pause and resume point in the graph.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Best mental model</strong></td>
+                        <td>Toolkit and components.</td>
+                        <td>Orchestration engine and control flow.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <h2 class="h3 mb-3">Why LangGraph matters for enterprise Agentic AI</h2>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="alert alert-primary h-100 mb-0">
+                <h3 class="h5"><i class="bi bi-shield-check me-2"></i>Security and policy enforcement</h3>
+                <p class="mb-0">Authentication, roles, tenant context, policy checks, and approval gates can be enforced outside the LLM.</p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="alert alert-success h-100 mb-0">
+                <h3 class="h5"><i class="bi bi-activity me-2"></i>Resilience</h3>
+                <p class="mb-0">Retries, fallbacks, error routes, and compensating actions can be built into the workflow.</p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="alert alert-warning h-100 mb-0">
+                <h3 class="h5"><i class="bi bi-eye me-2"></i>Observability</h3>
+                <p class="mb-0">Each node, transition, tool call, and state change can be logged and inspected.</p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="alert alert-info h-100 mb-0">
+                <h3 class="h5"><i class="bi bi-boxes me-2"></i>Modularity</h3>
+                <p class="mb-0">Agents and subgraphs can be developed, tested, and replaced independently.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section>
+    <div class="card border-primary">
+        <div class="card-header bg-primary text-white">
+            <i class="bi bi-lightbulb me-2"></i>One-sentence summary
+        </div>
+        <div class="card-body">
+            <p class="lead mb-3">
+                LangGraph turns an LLM from a conversational intelligence component into part of a controlled,
+                stateful, multi-step enterprise workflow.
+            </p>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        <tr><th style="width: 180px;">LLM</th><td>Reasons and communicates.</td></tr>
+                        <tr><th>Tools</th><td>Read data or perform actions.</td></tr>
+                        <tr><th>Agents</th><td>Act as domain specialists.</td></tr>
+                        <tr><th>LangChain</th><td>Provides reusable LLM application components.</td></tr>
+                        <tr><th>LangGraph</th><td>Coordinates the order, state, branching, looping, approval, and completion of the work.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
