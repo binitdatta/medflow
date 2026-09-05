@@ -27,12 +27,14 @@ from .context import set_identity, current_staff_id, current_role, current_chat_
 from .subgraphs.nurse import NURSE_TOOLS, NURSE_SYSTEM_PROMPT
 from .subgraphs.pharmacy import PHARMACY_TOOLS, PHARMACY_SYSTEM_PROMPT
 from .subgraphs.admissions import ADMISSIONS_TOOLS, ADMISSIONS_SYSTEM_PROMPT
-from services.logging_service import log_llm_call
+#from services.logging_service import log_llm_call
+from services.logging_service import log_llm_call, log_llm_hipaa_review
 
 from .subgraphs.physician import PHYSICIAN_TOOLS, PHYSICIAN_SYSTEM_PROMPT
 from .subgraphs.finance import FINANCE_TOOLS, FINANCE_SYSTEM_PROMPT
 from .subgraphs.management import MANAGEMENT_TOOLS, MANAGEMENT_SYSTEM_PROMPT
 from .subgraphs.legal import LEGAL_TOOLS, LEGAL_SYSTEM_PROMPT
+from .http_capture import capture_llm_http_call
 
 import os
 
@@ -62,16 +64,14 @@ def _build_graph(tools):
 
     def agent_node(state: AgentState):
         start = time.time()
-        response = llm.invoke(state["messages"])
+        with capture_llm_http_call() as http_capture:
+            response = llm.invoke(state["messages"])
         latency_ms = int((time.time() - start) * 1000)
 
         usage = getattr(response, "usage_metadata", None) or {}
         input_tokens = usage.get("input_tokens")
         output_tokens = usage.get("output_tokens")
         if input_tokens is None or output_tokens is None:
-            # Fallback for LangChain/langchain-anthropic versions that only
-            # populate the raw provider usage block rather than the
-            # standardized usage_metadata attribute.
             raw_usage = (getattr(response, "response_metadata", None) or {}).get("usage", {})
             input_tokens = input_tokens if input_tokens is not None else raw_usage.get("input_tokens")
             output_tokens = output_tokens if output_tokens is not None else raw_usage.get("output_tokens")
@@ -91,8 +91,35 @@ def _build_graph(tools):
         except Exception:
             pass  # logging must never break the chat turn itself
 
-        return {"messages": [response]}
+        try:
+            last_human = next(
+                (m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), ""
+            )
+            purpose = (
+                f"LangGraph agent_node reasoning step -- role={current_role.get()}, "
+                f"chat_session_id={current_chat_session_id.get()}. Triggered by: {str(last_human)[:200]}"
+            )
+            log_llm_hipaa_review(
+                staff_id=current_staff_id.get(),
+                actor_role=current_role.get(),
+                chat_session_id=current_chat_session_id.get(),
+                purpose=purpose,
+                http_method=http_capture.get("http_method"),
+                url=http_capture.get("url"),
+                request_headers=http_capture.get("request_headers"),
+                request_params={"model": ANTHROPIC_MODEL, "temperature": 0, "tool_names": [t.name for t in tools]},
+                request_body=http_capture.get("request_body"),
+                response_status=http_capture.get("response_status"),
+                response_body=http_capture.get("response_body"),
+                model=ANTHROPIC_MODEL,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                latency_ms=latency_ms,
+            )
+        except Exception:
+            pass  # logging must never break the chat turn itself
 
+        return {"messages": [response]}
     def tools_node(state: AgentState):
         last = state["messages"][-1]
         results = []

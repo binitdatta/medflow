@@ -60,6 +60,9 @@ def create_app():
             app.logger.warning(f"HTTP call logging failed: {exc}")
         return response
 
+    from agent.http_capture import install_http_capture
+    install_http_capture()
+
     from auth.routes import auth_bp
     app.register_blueprint(auth_bp)
 

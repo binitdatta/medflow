@@ -24,7 +24,10 @@
                 <li class="nav-item"><a class="nav-link" href="{{ url_for('web.dashboard') }}">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ url_for('web.chat_page') }}">Assistant</a></li>
                 {% if session.get('role') == 'ADMIN' %}
-                <li class="nav-item"><a class="nav-link" href="{{ url_for('web.admin_usage') }}">Usage &amp; Cost</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('web.admin_usage') }}">Usage &amp; Cost</a></li>
+                {% endif %}
+                {% if session.get('role') == 'HIPAA_ADMIN' %}
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('web.hipaa_review') }}">HIPAA Review</a></li>
                 {% endif %}
                 {% endif %}
                 <li class="nav-item dropdown">

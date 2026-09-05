@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}HIPAA Review — MedFlow{% endblock %}
+{% block content %}
+<h3>HIPAA Compliance Review</h3>
+<p class="text-muted">Every actual HTTP call made to Anthropic on a user's
+behalf, with full request/response detail. Restricted to HIPAA_ADMIN
+accounts.</p>
+
+<form id="filterForm" class="row g-2 align-items-end mb-4">
+    <div class="col-auto">
+        <label for="startDate" class="form-label mb-0 small text-muted">Start date</label>
+        <input type="date" id="startDate" class="form-control form-control-sm">
+    </div>
+    <div class="col-auto">
+        <label for="endDate" class="form-label mb-0 small text-muted">End date</label>
+        <input type="date" id="endDate" class="form-control form-control-sm">
+    </div>
+    <div class="col-auto">
+        <label for="roleFilter" class="form-label mb-0 small text-muted">Role</label>
+        <select id="roleFilter" class="form-select form-select-sm">
+            <option value="">All roles</option>
+            <option value="NURSE">Nurse</option>
+            <option value="PHARMACIST">Pharmacist</option>
+            <option value="ADMISSIONS">Admissions</option>
+            <option value="PHYSICIAN">Physician</option>
+            <option value="FINANCE">Finance</option>
+            <option value="MANAGEMENT">Management</option>
+            <option value="LEGAL">Legal</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label for="reviewedFilter" class="form-label mb-0 small text-muted">Status</label>
+        <select id="reviewedFilter" class="form-select form-select-sm">
+            <option value="">All</option>
+            <option value="false">Unreviewed only</option>
+            <option value="true">Reviewed only</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+    </div>
+</form>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted small">Total Calls</div>
+                <div class="fs-3 fw-bold" id="statTotal">—</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted small">Unreviewed</div>
+                <div class="fs-3 fw-bold text-danger" id="statUnreviewed">—</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted small">Reviewed</div>
+                <div class="fs-3 fw-bold text-success" id="statReviewed">—</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">LLM Calls</div>
+    <div class="card-body admin-table-scroll">
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    <th>Time</th><th>Role</th><th>Purpose</th><th>Model</th>
+                    <th>Cost</th><th>Status</th><th></th>
+                </tr>
+            </thead>
+            <tbody id="callsBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Call Detail — <span id="modalReviewId"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-sm">
+                    <tr><td style="width:160px"><strong>Time</strong></td><td id="modalTime"></td></tr>
+                    <tr><td><strong>Role / Staff</strong></td><td id="modalRoleStaff"></td></tr>
+                    <tr><td><strong>Purpose</strong></td><td id="modalPurpose"></td></tr>
+                    <tr><td><strong>HTTP Method / URL</strong></td><td id="modalMethodUrl"></td></tr>
+                    <tr><td><strong>Response Status</strong></td><td id="modalStatus"></td></tr>
+                    <tr><td><strong>Model / Tokens / Cost / Latency</strong></td><td id="modalMeta"></td></tr>
+                </table>
+
+                <h6 class="mt-3">Request Headers (API key redacted)</h6>
+                <pre class="code-block" id="modalHeaders" style="max-height:150px;"></pre>
+
+                <h6 class="mt-3">Request Parameters</h6>
+                <pre class="code-block" id="modalParams" style="max-height:150px;"></pre>
+
+                <h6 class="mt-3">Request Body</h6>
+                <pre class="code-block" id="modalRequestBody" style="max-height:250px;"></pre>
+
+                <h6 class="mt-3">Response Body</h6>
+                <pre class="code-block" id="modalResponseBody" style="max-height:250px;"></pre>
+
+                <div id="modalReviewedInfo" class="alert alert-success d-none"></div>
+
+                <div id="modalReviewForm">
+                    <h6 class="mt-3">Mark Reviewed</h6>
+                    <textarea id="reviewNotes" class="form-control mb-2" rows="2" placeholder="Optional notes (e.g. 'PHI present, appropriate for clinical task, no action needed')"></textarea>
+                    <button id="markReviewedBtn" class="btn btn-success btn-sm">
+                        <i class="bi bi-check-circle"></i> Mark Reviewed
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hipaa_review.js') }}"></script>
+{% endblock %}

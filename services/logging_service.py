@@ -30,6 +30,7 @@ from extensions import db
 from models.system_log import HttpCallLog, LlmCallLog
 from agent.pricing import get_pricing_for_model
 from .structured_logger import http_logger, llm_logger
+from models.llm_hipaa_review import LlmHipaaReviewLog
 
 MAX_LOGGED_BODY_CHARS = 8000  # cap applied to the MySQL copy only, not the console/ELK stream
 
@@ -145,4 +146,41 @@ def log_llm_call(*, staff_id, actor_role, chat_session_id, model,
     except Exception:
         pass  # console logging must never break the chat turn
 
+    return entry
+
+def log_llm_hipaa_review(*, staff_id, actor_role, chat_session_id, purpose,
+                          http_method, url, request_headers, request_params,
+                          request_body, response_status, response_body,
+                          model, input_tokens, output_tokens, latency_ms):
+    """Writes the detailed, unredacted (except API key) compliance record.
+    Deliberately no truncation here -- unlike log_llm_call()'s copy, a
+    reviewer needs the complete request/response."""
+    pricing = get_pricing_for_model(model)
+    cost_usd = None
+    if pricing and input_tokens is not None and output_tokens is not None:
+        cost_usd = (
+            (input_tokens / 1_000_000) * pricing["input_per_mtok"]
+            + (output_tokens / 1_000_000) * pricing["output_per_mtok"]
+        )
+
+    entry = LlmHipaaReviewLog(
+        staff_id=staff_id,
+        actor_role=actor_role,
+        chat_session_id=chat_session_id,
+        purpose=purpose[:500] if purpose else None,
+        http_method=http_method,
+        url=url,
+        request_headers=json.dumps(request_headers) if request_headers is not None else None,
+        request_params=json.dumps(request_params) if request_params is not None else None,
+        request_body=request_body,
+        response_status=response_status,
+        response_body=response_body,
+        model=model,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cost_usd=Decimal(str(round(cost_usd, 6))) if cost_usd is not None else None,
+        latency_ms=latency_ms,
+    )
+    db.session.add(entry)
+    db.session.commit()
     return entry

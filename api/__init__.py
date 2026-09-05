@@ -10,6 +10,7 @@ from .labs import labs_bp
 from .billing import billing_bp
 from .management import management_bp
 from .admin_usage import admin_usage_bp
+from .hipaa_review import hipaa_review_bp
 
 def register_api_blueprints(app):
     app.register_blueprint(patients_bp, url_prefix="/api")
@@ -24,3 +25,4 @@ def register_api_blueprints(app):
     app.register_blueprint(billing_bp, url_prefix="/api")
     app.register_blueprint(management_bp, url_prefix="/api")
     app.register_blueprint(admin_usage_bp, url_prefix="/api")
+    app.register_blueprint(hipaa_review_bp, url_prefix="/api")

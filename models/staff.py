@@ -2,7 +2,7 @@ from extensions import db
 
 ROLE_VALUES = (
     "PHYSICIAN", "NURSE", "PHARMACIST", "ADMISSIONS",
-    "FINANCE", "MANAGEMENT", "LEGAL", "ADMIN",
+    "FINANCE", "MANAGEMENT", "LEGAL", "ADMIN","HIPAA_ADMIN"
 )
 
 

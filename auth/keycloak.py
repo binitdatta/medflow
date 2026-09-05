@@ -132,6 +132,6 @@ def decode_access_token(access_token):
 def extract_role(claims):
     """medflow realm roles are assigned directly (not via client roles) — see keycloak/medflow-realm.json"""
     realm_roles = claims.get("realm_access", {}).get("roles", [])
-    known_roles = {"PHYSICIAN", "NURSE", "PHARMACIST", "ADMISSIONS", "FINANCE", "MANAGEMENT", "LEGAL", "ADMIN"}
+    known_roles = {"PHYSICIAN", "NURSE", "PHARMACIST", "ADMISSIONS", "FINANCE", "MANAGEMENT", "LEGAL", "ADMIN", "HIPAA_ADMIN"}
     matched = [r for r in realm_roles if r in known_roles]
     return matched[0] if matched else None

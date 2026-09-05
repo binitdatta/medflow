@@ -5,6 +5,10 @@ web_bp = Blueprint("web", __name__, template_folder="templates")
 def _require_login():
     return session.get("staff_id") is not None
 
+
+def _require_hipaa_admin():
+    return session.get("role") == "HIPAA_ADMIN"
+
 def _require_admin():
     return session.get("role") == "ADMIN"
 
@@ -164,3 +168,17 @@ def training_agent_security_observability():
 @web_bp.route("/training/agent-course/end-to-end")
 def training_agent_end_to_end():
     return render_template("training/agent_course/end_to_end.html")
+
+
+@web_bp.route("/hipaa/review")
+def hipaa_review():
+    if not _require_login():
+        return redirect(url_for("web.login_page"))
+    if not _require_hipaa_admin():
+        flash("The HIPAA Review dashboard is restricted to HIPAA_ADMIN accounts.", "warning")
+        return redirect(url_for("web.dashboard"))
+    return render_template(
+        "hipaa_review.html",
+        role=session.get("role"),
+        display_name=session.get("display_name"),
+    )

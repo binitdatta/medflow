@@ -10,6 +10,7 @@ from .billing import BillingClaim
 from .audit import AuditLog
 from .chat import ChatSession, ChatMessage
 from .system_log import HttpCallLog, LlmCallLog
+from .llm_hipaa_review import LlmHipaaReviewLog
 
 __all__ = [
     "Hospital", "Department", "Unit", "Bed",
@@ -24,4 +25,5 @@ __all__ = [
     "AuditLog",
     "ChatSession", "ChatMessage",
     "HttpCallLog", "LlmCallLog",
+    "LlmHipaaReviewLog",
 ]
