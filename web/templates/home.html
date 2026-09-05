@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}MedFlow — Agentic AI for Riverside Health Group{% endblock %}
+{% block content %}
+<div class="training-hero mb-4">
+    <h1 class="mb-3">MedFlow</h1>
+    <p class="fs-5 mb-4">A HIPAA/HL7-pattern Agentic AI platform for Riverside
+    Health Group — a multi-hospital care network spanning inpatient,
+    outpatient, pharmacy, inventory, and admissions operations, with a
+    single conversational assistant that adapts to who's asking.</p>
+    <a href="{{ url_for('auth.login') }}" class="btn btn-light btn-lg me-2">
+        <i class="bi bi-shield-lock"></i> Sign in with Keycloak
+    </a>
+    <a href="{{ url_for('web.training_index') }}" class="btn btn-outline-light btn-lg">
+        <i class="bi bi-mortarboard"></i> View Training
+    </a>
+</div>
+
+<h3 class="mb-3">Riverside Health Group — Organization</h3>
+<p class="text-muted mb-4">Two hospitals, each with its own departments and
+nursing units, operating under one shared MedFlow deployment. Every role's
+assistant is scoped to what makes sense for that role across this
+structure — a Nurse sees their own hospital's units, Management sees
+rolled-up metrics across both.</p>
+
+<div class="row g-3 mb-5">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-hospital"></i> Riverside General Hospital</div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">Primary campus — full inpatient, pharmacy, and admissions operations.</p>
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2">
+                        <i class="bi bi-building text-primary"></i> <strong>Riverside Inpatient Medicine</strong>
+                        <ul class="mt-1">
+                            <li>Unit 3 — Medical/Surgical (20 beds)</li>
+                            <li>Unit 4 — Telemetry (16 beds)</li>
+                        </ul>
+                    </li>
+                    <li class="mb-2"><i class="bi bi-capsule text-primary"></i> <strong>Riverside Pharmacy</strong></li>
+                    <li><i class="bi bi-clipboard-check text-primary"></i> <strong>Riverside Admissions</strong></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-hospital"></i> Lakeside Medical Center</div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">Second campus — inpatient medicine and pharmacy operations.</p>
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2">
+                        <i class="bi bi-building text-primary"></i> <strong>Lakeside Inpatient Medicine</strong>
+                        <ul class="mt-1">
+                            <li>Unit 2 — Medical/Surgical (18 beds)</li>
+                        </ul>
+                    </li>
+                    <li><i class="bi bi-capsule text-primary"></i> <strong>Lakeside Pharmacy</strong></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h3 class="mb-3">About This Project</h3>
+<div class="row g-3 mb-5">
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-info-circle"></i> What MedFlow Is</div>
+            <div class="card-body">
+                <p>MedFlow is a proof-of-concept agentic AI system built to
+                demonstrate — not just describe — how a hospital group can
+                give clinical and business staff a single conversational
+                assistant, without collapsing the role boundaries that
+                healthcare data requires.</p>
+                <p>Rather than one generic chatbot, MedFlow routes every
+                conversation through a role-specific LangGraph subgraph,
+                determined entirely by the staff member's Keycloak login —
+                never by anything typed in chat. A Nurse's assistant can
+                check bed status and record medication administration; a
+                Physician's can review charts, order labs, and draft
+                discharge summaries; a Legal reviewer's can only read the
+                audit trail. Seven clinical/business roles are live, plus a
+                dedicated HIPAA compliance reviewer role that can inspect
+                every actual HTTP call made to the underlying LLM.</p>
+                <p class="mb-0">Every PHI-touching action is audited at the
+                moment it happens, every LLM call is logged with cost and
+                token detail, and de-identification is enforced at the API
+                layer — not just assumed — for roles like Finance and
+                Management that have no business seeing clinical detail.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-stack"></i> Stack</div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0 small">
+                    <li class="mb-2"><strong>Backend:</strong> Python 3.12, Flask, SQLAlchemy</li>
+                    <li class="mb-2"><strong>Database:</strong> MySQL 8.x</li>
+                    <li class="mb-2"><strong>Agent orchestration:</strong> LangChain + LangGraph</li>
+                    <li class="mb-2"><strong>LLM:</strong> Anthropic Claude</li>
+                    <li class="mb-2"><strong>Identity:</strong> Keycloak 26 (PKCE + confidential client)</li>
+                    <li class="mb-0"><strong>UI:</strong> Bootstrap 5, Chart.js</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h3 class="mb-3">Roles &amp; Skills</h3>
+<div class="row g-3 mb-5">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <h6><i class="bi bi-check-circle text-success"></i> Nurse</h6>
+            <p class="small text-muted mb-0">Unit patient lists, medication schedules, bed status, recording administrations.</p>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <h6><i class="bi bi-check-circle text-success"></i> Pharmacist</h6>
+            <p class="small text-muted mb-0">Active medication review, drug interaction checks, inventory, dispensing.</p>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <h6><i class="bi bi-check-circle text-success"></i> Admissions</h6>
+            <p class="small text-muted mb-0">Patient lookup/registration, encounters, bed assignment.</p>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <h6><i class="bi bi-check-circle text-success"></i> Physician</h6>
+            <p class="small text-muted mb-0">Full chart review, diagnoses, lab orders, prescriptions, discharge summaries.</p>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <h6><i class="bi bi-check-circle text-success"></i> Finance</h6>
+            <p class="small text-muted mb-0">Billing claims and revenue summaries — no clinical detail ever exposed.</p>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <h6><i class="bi bi-check-circle text-success"></i> Management</h6>
+            <p class="small text-muted mb-0">Rolled-up occupancy, encounter volume, inventory, and revenue across hospitals.</p>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <h6><i class="bi bi-check-circle text-success"></i> Legal</h6>
+            <p class="small text-muted mb-0">Read-only audit trail review — who accessed what, and when.</p>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <h6><i class="bi bi-shield-check text-primary"></i> HIPAA Admin</h6>
+            <p class="small text-muted mb-0">Compliance reviewer — inspects every real LLM call for PHI handling.</p>
+        </div></div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body text-center py-4">
+        <p class="mb-3">Want to see how this is actually built — architecture, RBAC enforcement, audit logging, and the LangGraph patterns behind it?</p>
+        <a href="{{ url_for('web.training_index') }}" class="btn btn-primary"><i class="bi bi-mortarboard"></i> Explore the Training Library</a>
+    </div>
+</div>
+{% endblock %}

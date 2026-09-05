@@ -1,22 +1,477 @@
 {% extends "base.html" %}
+
 {% block title %}Login — MedFlow{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-5">
-        <div class="card shadow-sm">
-            <div class="card-header">Sign in to MedFlow</div>
-            <div class="card-body text-center py-5">
-                <i class="bi bi-heart-pulse-fill" style="font-size:3rem;color:var(--mf-blue-500);"></i>
-                <p class="text-muted mt-3">
-                    Sign in with your hospital group Keycloak account.
-                    Your role (Nurse, Pharmacist, Admissions, etc.) determines
-                    what the assistant can see and do.
-                </p>
-                <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg mt-2">
-                    <i class="bi bi-shield-lock"></i> Sign in with Keycloak
-                </a>
+
+<style>
+    .mf-login-page {
+        min-height: calc(100vh - 115px);
+        display: flex;
+        align-items: center;
+        padding: 3rem 0;
+    }
+
+    .mf-hero-title {
+        font-size: clamp(2.1rem, 4vw, 3.6rem);
+        font-weight: 750;
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+        color: #0f172a;
+    }
+
+    .mf-hero-title span {
+        color: var(--mf-blue-500, #0d6efd);
+    }
+
+    .mf-hero-subtitle {
+        font-size: 1.1rem;
+        line-height: 1.7;
+        color: #64748b;
+        max-width: 680px;
+    }
+
+    .mf-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .45rem .85rem;
+        border-radius: 999px;
+        background: rgba(13, 110, 253, .08);
+        border: 1px solid rgba(13, 110, 253, .16);
+        color: #0d6efd;
+        font-size: .82rem;
+        font-weight: 700;
+        letter-spacing: .03em;
+        text-transform: uppercase;
+    }
+
+    .mf-feature-card {
+        height: 100%;
+        padding: 1rem;
+        border-radius: 1rem;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+    .mf-feature-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 .5rem 1.5rem rgba(15, 23, 42, .07);
+    }
+
+    .mf-feature-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: .8rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(13, 110, 253, .08);
+        color: #0d6efd;
+        font-size: 1.15rem;
+        margin-bottom: .75rem;
+    }
+
+    .mf-feature-title {
+        font-size: .95rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: .25rem;
+    }
+
+    .mf-feature-text {
+        color: #64748b;
+        font-size: .84rem;
+        line-height: 1.45;
+        margin: 0;
+    }
+
+    .mf-login-card {
+        border: 1px solid #dbeafe;
+        border-radius: 1.25rem;
+        overflow: hidden;
+        background: #ffffff;
+        box-shadow:
+            0 20px 45px rgba(15, 23, 42, .08),
+            0 4px 12px rgba(15, 23, 42, .04);
+    }
+
+    .mf-login-card-header {
+        background: linear-gradient(
+            135deg,
+            rgba(13, 110, 253, .08),
+            rgba(13, 110, 253, .02)
+        );
+        border-bottom: 1px solid #dbeafe;
+        padding: 1.1rem 1.4rem;
+    }
+
+    .mf-logo-circle {
+        width: 76px;
+        height: 76px;
+        margin: 0 auto;
+        border-radius: 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #0d6efd, #2f80ed);
+        box-shadow: 0 12px 25px rgba(13, 110, 253, .22);
+    }
+
+    .mf-logo-circle i {
+        color: #ffffff;
+        font-size: 2.3rem;
+    }
+
+    .mf-login-button {
+        min-height: 52px;
+        border-radius: .75rem;
+        font-weight: 650;
+        box-shadow: 0 8px 20px rgba(13, 110, 253, .18);
+    }
+
+    .mf-security-row {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: .6rem;
+    }
+
+    .mf-security-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .35rem .65rem;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #475569;
+        font-size: .75rem;
+        font-weight: 600;
+    }
+
+    .mf-role-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .4rem;
+    }
+
+    .mf-role-pill {
+        padding: .3rem .6rem;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #475569;
+        font-size: .72rem;
+        font-weight: 600;
+    }
+
+    .mf-divider {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        color: #94a3b8;
+        font-size: .76rem;
+    }
+
+    .mf-divider::before,
+    .mf-divider::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: #e2e8f0;
+    }
+
+    .mf-course-note {
+        border-left: 3px solid #0d6efd;
+        background: rgba(13, 110, 253, .035);
+        padding: .85rem 1rem;
+        border-radius: 0 .65rem .65rem 0;
+        font-size: .84rem;
+        color: #64748b;
+    }
+
+    @media (max-width: 991.98px) {
+        .mf-login-page {
+            padding-top: 2rem;
+            align-items: flex-start;
+        }
+
+        .mf-hero-title {
+            font-size: 2.4rem;
+        }
+    }
+</style>
+
+
+<div class="container mf-login-page">
+    <div class="row g-5 align-items-center w-100">
+
+        <!-- ========================================================= -->
+        <!-- LEFT: PLATFORM INTRODUCTION                               -->
+        <!-- ========================================================= -->
+        <div class="col-lg-7">
+
+            <div class="mf-kicker mb-3">
+                <i class="bi bi-stars"></i>
+                Healthcare Agentic AI Platform
             </div>
+
+            <h1 class="mf-hero-title mb-4">
+                Intelligent healthcare workflows.
+                <span>Governed by identity.</span>
+            </h1>
+
+            <p class="mf-hero-subtitle mb-4">
+                MedFlow demonstrates how Agentic AI can assist healthcare
+                professionals while operating inside enterprise security,
+                authorization, human oversight, and audit boundaries.
+            </p>
+
+
+            <!-- Feature Cards -->
+            <div class="row g-3 mb-4">
+
+                <div class="col-md-6">
+                    <div class="mf-feature-card">
+                        <div class="mf-feature-icon">
+                            <i class="bi bi-person-badge"></i>
+                        </div>
+
+                        <div class="mf-feature-title">
+                            Role-Aware AI Agents
+                        </div>
+
+                        <p class="mf-feature-text">
+                            Nursing, physicians, pharmacy, admissions,
+                            finance, management, and compliance receive
+                            capabilities appropriate to their authenticated role.
+                        </p>
+                    </div>
+                </div>
+
+
+                <div class="col-md-6">
+                    <div class="mf-feature-card">
+                        <div class="mf-feature-icon">
+                            <i class="bi bi-person-check"></i>
+                        </div>
+
+                        <div class="mf-feature-title">
+                            Human-in-the-Loop
+                        </div>
+
+                        <p class="mf-feature-text">
+                            Sensitive actions can require explicit human
+                            review and confirmation before the AI workflow
+                            is allowed to continue.
+                        </p>
+                    </div>
+                </div>
+
+
+                <div class="col-md-6">
+                    <div class="mf-feature-card">
+                        <div class="mf-feature-icon">
+                            <i class="bi bi-shield-check"></i>
+                        </div>
+
+                        <div class="mf-feature-title">
+                            HIPAA-Focused Controls
+                        </div>
+
+                        <p class="mf-feature-text">
+                            Identity, least privilege, departmental
+                            separation, PHI-aware access patterns, and
+                            security boundaries are part of the architecture.
+                        </p>
+                    </div>
+                </div>
+
+
+                <div class="col-md-6">
+                    <div class="mf-feature-card">
+                        <div class="mf-feature-icon">
+                            <i class="bi bi-journal-text"></i>
+                        </div>
+
+                        <div class="mf-feature-title">
+                            Detailed Auditability
+                        </div>
+
+                        <p class="mf-feature-text">
+                            Application activity, API operations, AI usage,
+                            and security-relevant events can be recorded
+                            for investigation and governance.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+
+
+            <div class="mf-course-note">
+                <i class="bi bi-info-circle me-1"></i>
+                <strong>MedFlow is an educational Proof of Concept.</strong>
+                It demonstrates HIPAA-focused architecture and responsible
+                Enterprise AI design patterns rather than representing a
+                certified production healthcare system.
+            </div>
+
         </div>
+
+
+        <!-- ========================================================= -->
+        <!-- RIGHT: LOGIN                                              -->
+        <!-- ========================================================= -->
+        <div class="col-lg-5">
+
+            <div class="mf-login-card">
+
+                <div class="mf-login-card-header d-flex align-items-center gap-2">
+                    <i class="bi bi-shield-lock-fill text-primary"></i>
+
+                    <div>
+                        <div class="fw-bold">
+                            Secure Access
+                        </div>
+
+                        <div class="small text-muted">
+                            Identity managed through Keycloak
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="card-body px-4 px-xl-5 py-5 text-center">
+
+                    <div class="mf-logo-circle mb-4">
+                        <i class="bi bi-heart-pulse-fill"></i>
+                    </div>
+
+                    <h3 class="fw-bold mb-2">
+                        Sign in to MedFlow
+                    </h3>
+
+                    <p class="text-muted mb-4">
+                        Authenticate with your hospital identity to launch
+                        an AI assistant operating within your authorized
+                        departmental role.
+                    </p>
+
+
+                    <!-- Keycloak Sign-In -->
+                    <div class="d-grid">
+                        <a href="{{ url_for('auth.login') }}"
+                           class="btn btn-primary btn-lg mf-login-button">
+
+                            <i class="bi bi-shield-lock-fill me-2"></i>
+                            Sign in with Keycloak
+                        </a>
+                    </div>
+
+
+                    <div class="mf-divider my-4">
+                        Enterprise Identity
+                    </div>
+
+
+                    <!-- Security Indicators -->
+                    <div class="mf-security-row mb-4">
+
+                        <span class="mf-security-badge">
+                            <i class="bi bi-key-fill text-primary"></i>
+                            OAuth 2.0
+                        </span>
+
+                        <span class="mf-security-badge">
+                            <i class="bi bi-person-lock text-primary"></i>
+                            OpenID Connect
+                        </span>
+
+                        <span class="mf-security-badge">
+                            <i class="bi bi-shield-check text-primary"></i>
+                            PKCE
+                        </span>
+
+                        <span class="mf-security-badge">
+                            <i class="bi bi-diagram-3 text-primary"></i>
+                            RBAC
+                        </span>
+
+                    </div>
+
+
+                    <div class="text-start">
+
+                        <div class="small fw-semibold text-secondary mb-2">
+                            ROLE-SPECIFIC EXPERIENCE
+                        </div>
+
+                        <div class="mf-role-strip">
+
+                            <span class="mf-role-pill">
+                                <i class="bi bi-heart-pulse me-1"></i>
+                                Nursing
+                            </span>
+
+                            <span class="mf-role-pill">
+                                <i class="bi bi-person-vcard me-1"></i>
+                                Physician
+                            </span>
+
+                            <span class="mf-role-pill">
+                                <i class="bi bi-capsule me-1"></i>
+                                Pharmacy
+                            </span>
+
+                            <span class="mf-role-pill">
+                                <i class="bi bi-person-plus me-1"></i>
+                                Admissions
+                            </span>
+
+                            <span class="mf-role-pill">
+                                <i class="bi bi-cash-stack me-1"></i>
+                                Finance
+                            </span>
+
+                            <span class="mf-role-pill">
+                                <i class="bi bi-bar-chart me-1"></i>
+                                Management
+                            </span>
+
+                            <span class="mf-role-pill">
+                                <i class="bi bi-shield-exclamation me-1"></i>
+                                Compliance
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                    <hr class="my-4">
+
+
+                    <div class="d-flex justify-content-center
+                                align-items-center gap-2 text-muted small">
+
+                        <i class="bi bi-lock-fill text-success"></i>
+
+                        <span>
+                            Authentication determines identity.
+                            Authorization determines capabilities.
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
 </div>
+
 {% endblock %}

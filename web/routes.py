@@ -25,11 +25,17 @@ def admin_usage():
         display_name=session.get("display_name"),
     )
 
+# @web_bp.route("/")
+# def index():
+#     if _require_login():
+#         return redirect(url_for("web.dashboard"))
+#     return redirect(url_for("web.login_page"))
+
 @web_bp.route("/")
 def index():
     if _require_login():
         return redirect(url_for("web.dashboard"))
-    return redirect(url_for("web.login_page"))
+    return render_template("home.html")
 
 
 @web_bp.route("/login")
