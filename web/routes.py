@@ -37,6 +37,9 @@ def index():
         return redirect(url_for("web.dashboard"))
     return render_template("home.html")
 
+@web_bp.route("/training/graph-theory-langgraph")
+def training_graph_theory_langgraph():
+    return render_template("training/graph_theory_langgraph.html")
 
 @web_bp.route("/login")
 def login_page():

@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}Graph Theory &amp; LangGraph — MedFlow Training{% endblock %}
+{% block content %}
+<div class="training-hero mb-4">
+    <h2>Graph Theory, and Why LangGraph Is Named That</h2>
+    <p class="mb-0">LangGraph isn't a marketing name — it's a literal
+    implementation of graph theory concepts that are decades old and show
+    up everywhere from GPS navigation to org charts. This page covers the
+    basic tenets with everyday examples, then maps each one directly onto
+    the LangGraph code already running in MedFlow.</p>
+</div>
+
+<h3 class="mb-3">Part 1 — Basic Tenets of Graph Theory</h3>
+<p class="text-muted mb-4">A graph is just two things: a set of
+<strong>nodes</strong> (things) and a set of <strong>edges</strong>
+(connections between things). Everything below is a variation on that one
+idea.</p>
+
+<div class="row g-3 mb-5">
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-diagram-2"></i> Nodes &amp; Edges</div>
+            <div class="card-body">
+                <p>The two building blocks of any graph. A node is a thing;
+                an edge is a connection between two things.</p>
+                <p class="mb-0 text-muted small"><strong>Example:</strong>
+                Cities are nodes, roads between them are edges. LinkedIn
+                profiles are nodes, connections are edges.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-arrow-right"></i> Directed vs. Undirected</div>
+            <div class="card-body">
+                <p>An <strong>undirected</strong> edge goes both ways
+                equally. A <strong>directed</strong> edge has a specific
+                direction — A connects to B doesn't mean B connects to A.</p>
+                <p class="mb-0 text-muted small"><strong>Example:</strong>
+                Facebook friendship is undirected (mutual by definition).
+                Twitter/X following is directed — you can follow someone
+                who doesn't follow you back. A one-way street is directed.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-arrow-repeat"></i> Cycles</div>
+            <div class="card-body">
+                <p>A cycle exists when you can follow edges in one
+                direction and eventually return to where you started. A
+                graph with no cycles at all is called a <strong>DAG</strong>
+                (Directed Acyclic Graph).</p>
+                <p class="mb-0 text-muted small"><strong>Example:</strong>
+                A roundabout has a cycle. A family tree does not (you can
+                never be your own ancestor) — that's a DAG. Course
+                prerequisites at a university are also a DAG: nothing can
+                require itself, even indirectly.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-diagram-3"></i> Trees</div>
+            <div class="card-body">
+                <p>A special case of a DAG: every node has exactly one path
+                back to a single root, and there's exactly one way to reach
+                any node — no shortcuts, no alternate routes.</p>
+                <p class="mb-0 text-muted small"><strong>Example:</strong>
+                A company org chart. A computer's file system (every folder
+                has exactly one parent folder). A single-elimination sports
+                tournament bracket.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-signpost-split"></i> Weighted Graphs</div>
+            <div class="card-body">
+                <p>Edges can carry a number — a cost, distance, or time —
+                not just a yes/no connection. This is what turns "are these
+                connected" into "what's the <em>best</em> way to connect
+                them."</p>
+                <p class="mb-0 text-muted small"><strong>Example:</strong>
+                Road distances between cities. Flight prices between
+                airports. Google Maps' "fastest route" is a weighted-graph
+                shortest-path calculation running in real time.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-toggle2-on"></i> State Machines</div>
+            <div class="card-body">
+                <p>A graph where nodes are <strong>states</strong> a system
+                can be in, and edges are the allowed transitions between
+                them — you can't jump to just any state from any other.</p>
+                <p class="mb-0 text-muted small"><strong>Example:</strong>
+                A traffic light: Red → Green → Yellow → Red, and nothing
+                skips straight from Red to Yellow. An elevator door:
+                Closed → Opening → Open → Closing → Closed.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h3 class="mb-3">Part 2 — Where Each Concept Shows Up in LangGraph</h3>
+<p class="text-muted mb-4">LangGraph is a directed graph library built
+specifically for one thing plain graph libraries don't optimize for:
+<strong>cycles with state</strong> — an agent that can loop back and try
+again, carrying what it learned forward each time. Click through each
+mapping below.</p>
+
+<div class="accordion mb-5" id="graphTheoryAccordion">
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#gtExample1">
+                Nodes = Python functions, not places on a map
+            </button>
+        </h2>
+        <div id="gtExample1" class="accordion-collapse collapse show" data-bs-parent="#graphTheoryAccordion">
+            <div class="accordion-body">
+                <p>In `agent/graph.py`, every node is just a Python function
+                that takes the current state and returns an update to it.
+                MedFlow's every role subgraph has exactly two nodes:</p>
+                <pre class="code-block">graph.add_node("agent", agent_node)
+graph.add_node("tools", tools_node)</pre>
+                <p class="mb-0">Same concept as a city on a map, just
+                abstracted: a node is "a place execution can be," not a
+                physical location. `agent_node` is where the LLM decides
+                what to do; `tools_node` is where a tool call actually runs.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#gtExample2">
+                Directed edges = "agent leads to tools," never automatically the reverse
+            </button>
+        </h2>
+        <div id="gtExample2" class="accordion-collapse collapse" data-bs-parent="#graphTheoryAccordion">
+            <div class="accordion-body">
+                <p>Every edge in LangGraph is directed, same as a Twitter
+                follow. MedFlow's graph has:</p>
+                <pre class="code-block">graph.add_edge("tools", "agent")</pre>
+                <p class="mb-0">This means "after tools runs, go to agent" —
+                it says nothing about the reverse direction. The
+                agent → tools direction isn't a plain edge at all; it's
+                conditional (see below), because whether that edge is
+                followed depends on what the LLM decided.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#gtExample3">
+                Cycles = the whole reason LangGraph exists
+            </button>
+        </h2>
+        <div id="gtExample3" class="accordion-collapse collapse" data-bs-parent="#graphTheoryAccordion">
+            <div class="accordion-body">
+                <p>Plain LangChain "chains" are essentially a DAG — data
+                flows one direction through a fixed sequence of steps, no
+                loops allowed. That's fine for "summarize this document,"
+                but useless for "keep checking labs and ordering more until
+                you have enough to diagnose."</p>
+                <p>LangGraph's entire value proposition is supporting real
+                cycles. MedFlow's agent ↔ tools loop can run many times in
+                a single turn:</p>
+                <pre class="code-block">agent  --tool call requested-->  tools
+  ^                                    |
+  |____________________________________|</pre>
+                <p class="mb-0">This is a graph with a cycle, on purpose —
+                the Physician subgraph's "check the chart, then order a CT
+                only if needed" behavior from Phase 2 testing is only
+                possible because the graph can go agent → tools → agent →
+                tools as many times as the LLM decides it needs to.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#gtExample4">
+                "Weighted" edges = conditional edges, decided at runtime instead of fixed in advance
+            </button>
+        </h2>
+        <div id="gtExample4" class="accordion-collapse collapse" data-bs-parent="#graphTheoryAccordion">
+            <div class="accordion-body">
+                <p>A weighted graph's edge carries a fixed number decided
+                ahead of time (a road's distance never changes mid-trip).
+                LangGraph's conditional edges are the dynamic version of
+                that idea: instead of a fixed weight, each edge has a
+                <strong>function</strong> that's evaluated fresh every time,
+                using the current state, to decide which path to take:</p>
+                <pre class="code-block">def should_continue(state):
+    last = state["messages"][-1]
+    if isinstance(last, AIMessage) and getattr(last, "tool_calls", None):
+        return "tools"
+    return "end"
+
+graph.add_conditional_edges("agent", should_continue, {"tools": "tools", "end": END})</pre>
+                <p class="mb-0">Same underlying graph-theory idea as
+                "which edge do I take" — just evaluated live against
+                what the LLM actually said, not a number baked in ahead
+                of time.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#gtExample5">
+                START and END = the source and sink of the graph
+            </button>
+        </h2>
+        <div id="gtExample5" class="accordion-collapse collapse" data-bs-parent="#graphTheoryAccordion">
+            <div class="accordion-body">
+                <p>In graph theory, a <strong>source</strong> is a node
+                nothing points into (where a path can begin) and a
+                <strong>sink</strong> is a node nothing points out of
+                (where a path must end). LangGraph makes these explicit
+                rather than implicit:</p>
+                <pre class="code-block">graph.set_entry_point("agent")
+...
+graph.add_conditional_edges("agent", should_continue, {"tools": "tools", "end": END})</pre>
+                <p class="mb-0">`END` isn't a real node with logic in it —
+                it's a sentinel value meaning "the traversal is over,
+                return the final state." Every LangGraph run is, formally,
+                a walk from a source to a sink through however many cycles
+                it takes to get there.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#gtExample6">
+                State propagation = data carried along the walk, like a token passed hand to hand
+            </button>
+        </h2>
+        <div id="gtExample6" class="accordion-collapse collapse" data-bs-parent="#graphTheoryAccordion">
+            <div class="accordion-body">
+                <p>A graph traversal by itself doesn't have to carry
+                anything — you can walk a road map without remembering
+                what you saw at the last city. LangGraph's key addition is
+                a shared <strong>state</strong> object that flows along
+                every edge and accumulates as nodes run:</p>
+                <pre class="code-block">class AgentState(TypedDict):
+    messages: Annotated[list[BaseMessage], operator.add]</pre>
+                <p class="mb-0">Every time `tools_node` runs, its output
+                messages get appended (`operator.add`) to what's already
+                there, and the whole accumulated list is what `agent_node`
+                sees on the next visit — so the LLM's second pass through
+                the loop knows everything the first pass learned.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#gtExample7">
+                Multiple graphs = graph composition, chosen before traversal even starts
+            </button>
+        </h2>
+        <div id="gtExample7" class="accordion-collapse collapse" data-bs-parent="#graphTheoryAccordion">
+            <div class="accordion-body">
+                <p>Nothing says a system has to have only one graph.
+                MedFlow compiles a <strong>separate small graph per
+                role</strong> — Nurse's 2-node graph and Physician's 2-node
+                graph have the same shape but different tools bound to the
+                `agent` node:</p>
+                <pre class="code-block">ROLE_CONFIG = {
+    "NURSE": (NURSE_TOOLS, NURSE_SYSTEM_PROMPT),
+    "PHYSICIAN": (PHYSICIAN_TOOLS, PHYSICIAN_SYSTEM_PROMPT),
+    ...
+}</pre>
+                <p class="mb-0">Choosing <em>which</em> graph to walk (by
+                Keycloak role, never by chat text — see Training → RBAC in
+                LangGraph) happens once, before any traversal begins. It's
+                the graph-theory equivalent of picking which city map to
+                open before you start navigating, rather than trying to
+                use one giant map of every city at once.</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="card">
+    <div class="card-header"><i class="bi bi-lightbulb"></i> The one-line mapping for each</div>
+    <div class="card-body">
+        <table class="table table-sm mb-0">
+            <tr><td style="width:220px"><strong>Nodes</strong></td><td>Python functions (`agent_node`, `tools_node`)</td></tr>
+            <tr><td><strong>Directed edges</strong></td><td>`add_edge("tools", "agent")` — one-way, explicit</td></tr>
+            <tr><td><strong>Cycles</strong></td><td>The agent ↔ tools loop — LangGraph's whole reason to exist</td></tr>
+            <tr><td><strong>Weighted / conditional edges</strong></td><td>`add_conditional_edges` + a routing function evaluated live</td></tr>
+            <tr><td><strong>Source / sink</strong></td><td>`set_entry_point(...)` and `END`</td></tr>
+            <tr><td><strong>Data carried along the walk</strong></td><td>The shared `AgentState` (`messages` list)</td></tr>
+            <tr><td><strong>Graph composition</strong></td><td>One compiled graph per role, selected via `ROLE_CONFIG`</td></tr>
+        </table>
+    </div>
+</div>
+{% endblock %}
